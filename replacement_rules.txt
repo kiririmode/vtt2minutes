@@ -1,0 +1,55 @@
+# VTT2Minutes Word Replacement Rules
+# This file contains word replacement rules for preprocessing VTT transcripts.
+# Format: original_word -> replacement_word
+# Lines starting with # are comments and will be ignored.
+# Empty lines are also ignored.
+
+# Technology terms (技術用語の統一)
+ベッドロック -> Bedrock
+ラムダ -> Lambda
+エス3 -> S3
+エスサン -> S3
+イーシー2 -> EC2
+イーシーツー -> EC2
+イーエックスシー -> EXC
+イーディ -> ED
+エーピーアイ -> API
+ディービー -> DB
+データベース -> データベース
+クラウド -> クラウド
+
+# Company/Product names (会社・製品名の統一)
+アマゾン -> Amazon
+アマゾンウェブサービス -> Amazon Web Services
+エーダブリューエス -> AWS
+グーグル -> Google
+マイクロソフト -> Microsoft
+アップル -> Apple
+
+# Common technical abbreviations (一般的な技術略語)
+アイティー -> IT
+シーアイ -> CI
+シーディー -> CD
+ユーアイ -> UI
+ユーエックス -> UX
+エムエル -> ML
+エーアイ -> AI
+
+# Meeting/Business terms (会議・ビジネス用語)
+エムティージー -> MTG
+ミーティング -> ミーティング
+アジェンダ -> アジェンダ
+アクション -> アクション
+タスク -> タスク
+プロジェクト -> プロジェクト
+チーム -> チーム
+
+# Development terms (開発用語)
+リポジトリ -> リポジトリ
+コミット -> コミット
+プルリクエスト -> プルリクエスト
+プルリク -> プルリクエスト
+マージ -> マージ
+ブランチ -> ブランチ
+デプロイ -> デプロイ
+リリース -> リリース

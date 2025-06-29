@@ -52,6 +52,11 @@ console = Console()
     help="Path to custom filler words file",
 )
 @click.option(
+    "--replacement-rules-file",
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to custom word replacement rules file",
+)
+@click.option(
     "--bedrock-model",
     type=str,
     help=(
@@ -93,6 +98,7 @@ def main(
     merge_threshold: float,
     duplicate_threshold: float,
     filter_words_file: Path | None,
+    replacement_rules_file: Path | None,
     bedrock_model: str | None,
     bedrock_inference_profile_id: str | None,
     bedrock_region: str,
@@ -143,6 +149,7 @@ def main(
             merge_gap_threshold=merge_threshold,
             duplicate_threshold=duplicate_threshold,
             filler_words_file=filter_words_file,
+            replacement_rules_file=replacement_rules_file,
         )
         preprocessor = TextPreprocessor(config)
 

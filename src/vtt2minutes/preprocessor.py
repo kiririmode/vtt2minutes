@@ -18,6 +18,15 @@ class PreprocessingConfig:
     # Path to filler words file (overrides default filler_words if provided)
     filler_words_file: Path | str | None = None
 
+    # Word replacement rules (original -> replacement)
+    replacement_rules: dict[str, str] | None = None
+
+    # Path to replacement rules file (overrides default replacement_rules if provided)
+    replacement_rules_file: Path | str | None = None
+
+    # Whether to enable word replacement
+    enable_word_replacement: bool = True
+
     # Minimum text length to keep (characters)
     min_text_length: int = 3
 
@@ -37,7 +46,7 @@ class PreprocessingConfig:
     fix_transcription_errors: bool = True
 
     def __post_init__(self) -> None:
-        """Initialize filler words from file or defaults."""
+        """Initialize filler words and replacement rules from file or defaults."""
         # If a filler words file is specified, load from file
         if self.filler_words_file is not None:
             self.filler_words = self._load_filler_words_from_file(
@@ -46,6 +55,15 @@ class PreprocessingConfig:
         elif self.filler_words is None:
             # Use default filler words if none provided
             self.filler_words = self._get_default_filler_words()
+
+        # If a replacement rules file is specified, load from file
+        if self.replacement_rules_file is not None:
+            self.replacement_rules = self._load_replacement_rules_from_file(
+                self.replacement_rules_file
+            )
+        elif self.replacement_rules is None:
+            # Use empty dict if none provided
+            self.replacement_rules = {}
 
     def _load_filler_words_from_file(self, file_path: Path | str) -> set[str]:
         """Load filler words from a text file.
@@ -118,6 +136,53 @@ class PreprocessingConfig:
             "[笑い]",
         }
 
+    def _load_replacement_rules_from_file(
+        self, file_path: Path | str
+    ) -> dict[str, str]:
+        """Load replacement rules from a text file.
+
+        Args:
+            file_path: Path to the replacement rules file
+
+        Returns:
+            Dictionary of replacement rules (original -> replacement)
+
+        Raises:
+            FileNotFoundError: If the file doesn't exist
+        """
+        file_path = Path(file_path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"Replacement rules file not found: {file_path}")
+
+        replacement_rules = {}
+        try:
+            with file_path.open(encoding="utf-8") as f:
+                for line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    # Skip empty lines and comments
+                    if not line or line.startswith("#"):
+                        continue
+
+                    # Parse "original -> replacement" format
+                    if " -> " in line:
+                        original, replacement = line.split(" -> ", 1)
+                        original = original.strip()
+                        replacement = replacement.strip()
+                        if original and replacement:
+                            replacement_rules[original] = replacement
+                    else:
+                        # Log warning for invalid format but continue processing
+                        print(
+                            f"Warning: Invalid format at line {line_num} in "
+                            f"{file_path}: {line}"
+                        )
+        except Exception as e:
+            raise ValueError(
+                f"Error reading replacement rules file {file_path}: {e}"
+            ) from e
+
+        return replacement_rules
+
 
 class TextPreprocessor:
     """Preprocessor for cleaning and improving VTT transcript text."""
@@ -187,6 +252,10 @@ class TextPreprocessor:
         """
         text = cue.text
 
+        # Apply word replacement if enabled
+        if self.config.enable_word_replacement:
+            text = self._apply_word_replacement(text)
+
         # Remove filler words
         text = self._remove_filler_words(text)
 
@@ -212,6 +281,33 @@ class TextPreprocessor:
             speaker=cue.speaker,
             text=text,
         )
+
+    def _apply_word_replacement(self, text: str) -> str:
+        """Apply word replacement rules to text.
+
+        Args:
+            text: Input text
+
+        Returns:
+            Text with words replaced according to replacement rules
+        """
+        if not self.config.enable_word_replacement or not self.config.replacement_rules:
+            return text
+
+        # Sort by length (longest first) to prevent partial replacement
+        sorted_rules = sorted(
+            self.config.replacement_rules.items(),
+            key=lambda x: len(x[0]),
+            reverse=True,
+        )
+
+        result_text = text
+        for original, replacement in sorted_rules:
+            # For Japanese text, we do simple string replacement (no word boundaries)
+            # since Japanese doesn't have clear word boundaries like English
+            result_text = result_text.replace(original, replacement)
+
+        return result_text
 
     def _remove_filler_words(self, text: str) -> str:
         """Remove filler words from text.
