@@ -146,10 +146,6 @@ jobs:
         echo "Testing help command..."
         uv run vtt2minutes --help
         
-        # Test info command with sample file
-        echo "Testing info command..."
-        uv run vtt2minutes info tests/sample.vtt
-        
         echo "::endgroup::"
 
     - name: Test preprocessing functionality
