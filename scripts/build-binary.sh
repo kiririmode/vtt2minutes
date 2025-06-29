@@ -128,7 +128,16 @@ fi
 
 # Run PyInstaller
 print_info "Running PyInstaller..."
-if ! uv run pyinstaller vtt2minutes.spec --distpath "$OUTPUT_DIR" --workpath build; then
+
+# Use absolute path to spec file to ensure it's found
+SPEC_FILE="$PROJECT_ROOT/vtt2minutes.spec"
+if [[ ! -f "$SPEC_FILE" ]]; then
+    print_error "Spec file not found at $SPEC_FILE"
+    exit 1
+fi
+
+print_info "Using spec file: $SPEC_FILE"
+if ! uv run pyinstaller "$SPEC_FILE" --distpath "$OUTPUT_DIR" --workpath build; then
     print_error "PyInstaller build failed"
     exit 1
 fi
