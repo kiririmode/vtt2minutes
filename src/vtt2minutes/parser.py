@@ -156,20 +156,33 @@ class VTTParser:
         """Extract speaker name from VTT text.
 
         Args:
-            text: Raw VTT text that may contain speaker tags
+            text: Raw VTT text that may contain speaker tags or speaker names
 
         Returns:
             Tuple of (speaker_name, clean_text)
         """
-        # Look for speaker voice tags
+        # Look for speaker voice tags first
         speaker_match = self._speaker_pattern.search(text)
-        speaker = speaker_match.group(1) if speaker_match else None
+        if speaker_match:
+            speaker = speaker_match.group(1)
+            # Remove all HTML tags
+            clean_text = self._html_tag_pattern.sub("", text)
+            clean_text = " ".join(clean_text.split())
+            return speaker, clean_text
 
-        # Remove all HTML tags
+        # Remove HTML tags first
         clean_text = self._html_tag_pattern.sub("", text)
 
-        # Clean up whitespace
-        clean_text = " ".join(clean_text.split())
+        # Look for Japanese speaker name pattern: "Name:" at the beginning
+        speaker_name_pattern = re.compile(r"^([^\s:]+(?:\s+[^\s:]+)*)\s*:\s*(.*)$")
+        speaker_name_match = speaker_name_pattern.match(clean_text.strip())
+        
+        if speaker_name_match:
+            speaker = speaker_name_match.group(1).strip()
+            clean_text = speaker_name_match.group(2).strip()
+        else:
+            speaker = None
+            clean_text = " ".join(clean_text.split())
 
         return speaker, clean_text
 

@@ -480,3 +480,304 @@ class TestFilterWordsFile:
             assert "重要な内容です" in result[1].text
         finally:
             temp_path.unlink()
+
+
+class TestJapaneseTextProcessing:
+    """Test cases for Japanese text processing and spacing improvements."""
+
+    def test_japanese_filler_word_removal_and_spacing(self) -> None:
+        """Test that Japanese filler word removal and spacing works correctly."""
+        config = PreprocessingConfig()
+        preprocessor = TextPreprocessor(config)
+
+        cues = [
+            VTTCue(
+                "00:00:01.000",
+                "00:00:03.000",
+                "田中",
+                "えー、おはようございます、あのー、今日の会議を、えっと、始めたいと思います。",
+            ),
+            VTTCue(
+                "00:00:03.000",
+                "00:00:05.000",
+                "佐藤",
+                "おはようございます、あ、よろしくお願いします。はい。",
+            ),
+        ]
+
+        result = preprocessor.preprocess_cues(cues)
+
+        # Check that filler words are removed
+        assert "えー" not in result[0].text
+        assert "あのー" not in result[0].text
+        assert "えっと" not in result[0].text
+        assert "おはようございます" in result[0].text
+        assert "今日の会議を" in result[0].text
+        assert "始めたいと思います" in result[0].text
+
+        # Check that sentence endings are preserved
+        assert "。" in result[0].text  # Periods should be preserved
+
+        # Check second cue
+        assert "はい" not in result[1].text
+        assert "おはようございます" in result[1].text
+        assert "よろしくお願いします" in result[1].text
+
+        # Most importantly: check that spacing is natural (not excessive)
+        for cue in result:
+            # Should not have multiple consecutive spaces
+            assert "  " not in cue.text
+            # Should not have unnatural spacing patterns
+            assert not cue.text.startswith(" ")
+            assert not cue.text.endswith(" ")
+
+    def test_japanese_text_no_unnatural_spaces(self) -> None:
+        """Test that Japanese text doesn't have unnatural spacing after processing."""
+        config = PreprocessingConfig()
+        preprocessor = TextPreprocessor(config)
+
+        cues = [
+            VTTCue(
+                "00:00:01.000",
+                "00:00:03.000",
+                "田中",
+                "あー、すみません、今、音声が、ちょっと、えっと、遅れてまして…。",
+            ),
+            VTTCue(
+                "00:00:03.000",
+                "00:00:05.000",
+                "佐藤",
+                "えー、Aプロジェクトは、予定、予定通りに、進んでます。",
+            ),
+        ]
+
+        result = preprocessor.preprocess_cues(cues)
+
+        # Check that unnatural spaces are not inserted
+        for cue in result:
+            # Should not have multiple consecutive spaces
+            assert "  " not in cue.text
+            # Should not start with punctuation (leading comma issue)
+            assert not cue.text.startswith("、")
+            assert not cue.text.startswith("，")
+            # Should end with proper punctuation
+            assert cue.text.endswith(("。", "…", ".", "!", "?", "！", "？"))
+            # Should not have unnatural whitespace patterns
+            assert not cue.text.startswith(" ")
+            assert not cue.text.endswith(" ")
+            # Check that some meaningful content is preserved
+            assert len(cue.text) > 5  # Should have substantial content
+
+    def test_mixed_japanese_english_processing(self) -> None:
+        """Test processing of mixed Japanese and English content."""
+        config = PreprocessingConfig()
+        preprocessor = TextPreprocessor(config)
+
+        cues = [
+            VTTCue(
+                "00:00:01.000",
+                "00:00:03.000",
+                "田中",
+                "えー、Bプロジェクト、Bプロジェクトなんですけど、仕様が、途中で変わったので…。",
+            ),
+            VTTCue(
+                "00:00:03.000",
+                "00:00:05.000",
+                "佐藤",
+                "um、well、I think、えー、いいと思います。",
+            ),
+        ]
+
+        result = preprocessor.preprocess_cues(cues)
+
+        # Check Japanese processing
+        assert "えー" not in result[0].text
+        assert "Bプロジェクト" in result[0].text
+        assert "仕様が" in result[0].text
+        assert "、" in result[0].text
+
+        # Check mixed content processing
+        assert "um" not in result[1].text
+        assert "well" not in result[1].text
+        assert "I think" in result[1].text
+        assert "いいと思います" in result[1].text
+
+    def test_complex_japanese_sentence_structure(self) -> None:
+        """Test complex Japanese sentences with multiple clauses."""
+        config = PreprocessingConfig()
+        preprocessor = TextPreprocessor(config)
+
+        cues = [
+            VTTCue(
+                "00:00:01.000",
+                "00:00:03.000",
+                "田中",
+                "あの、仕様変更が、ありまして、で、その、影響で、ちょっと遅れが…。",
+            ),
+            VTTCue(
+                "00:00:03.000",
+                "00:00:05.000",
+                "佐藤",
+                "なるほど、なるほど、それは、来週までに、あの、対策できますか？",
+            ),
+        ]
+
+        result = preprocessor.preprocess_cues(cues)
+
+        # Check that complex sentence structure is preserved
+        for cue in result:
+            # Should maintain natural flow
+            assert "仕様変更が" in result[0].text or "ありまして" in result[0].text
+            assert "なるほど" in result[1].text
+            assert "来週までに" in result[1].text
+            assert "対策できますか" in result[1].text
+            
+            # Should not have unnatural artifacts
+            assert not cue.text.startswith("、")
+            assert "、、" not in cue.text
+            assert "。。" not in cue.text
+
+    def test_japanese_vs_english_space_handling(self) -> None:
+        """Test that Japanese and English text are handled differently for spacing."""
+        config = PreprocessingConfig()
+        preprocessor = TextPreprocessor(config)
+
+        cues = [
+            VTTCue(
+                "00:00:01.000",
+                "00:00:03.000",
+                "田中",
+                "ただ、ちょっとだけ、進捗が、あの、遅れそうでして、うーん、追加の、作業が必要かと…。",
+            ),
+            VTTCue(
+                "00:00:03.000",
+                "00:00:05.000",
+                "Smith",
+                "Well, um, I think that, uh, we need to, you know, address this issue.",
+            ),
+        ]
+
+        result = preprocessor.preprocess_cues(cues)
+
+        # Japanese text should have natural punctuation without excess spaces
+        japanese_text = result[0].text
+        assert "、" in japanese_text
+        assert "進捗が" in japanese_text
+        assert "追加の" in japanese_text
+        assert "作業が必要かと" in japanese_text
+        # Should not have unnatural consecutive spaces in Japanese
+        assert "  " not in japanese_text
+
+        # English text should maintain proper word spacing
+        english_text = result[1].text
+        assert "I think that" in english_text
+        assert "address this issue" in english_text
+        # English should have proper spaces between words
+        words = english_text.split()
+        assert len(words) >= 5  # Should have multiple words properly spaced
+
+    def test_punctuation_boundary_cases(self) -> None:
+        """Test edge cases with punctuation and filler word boundaries."""
+        config = PreprocessingConfig()
+        preprocessor = TextPreprocessor(config)
+
+        cues = [
+            VTTCue(
+                "00:00:01.000",
+                "00:00:03.000",
+                "田中",
+                "えー、じゃあ、最初に、先週の、えー、タスクの、えー、進捗を…報告お願いします。",
+            ),
+            VTTCue(
+                "00:00:03.000",
+                "00:00:05.000",
+                "佐藤",
+                "ありがとうございます。では、じゃあ、その、アクション、アイテムを、整理しましょう。",
+            ),
+        ]
+
+        result = preprocessor.preprocess_cues(cues)
+
+        # Check that leading punctuation is handled correctly
+        for cue in result:
+            # Should not start with comma or space
+            assert not cue.text.startswith("、")
+            assert not cue.text.startswith(" ")
+            # Should not have doubled punctuation
+            assert "、、" not in cue.text
+            assert "。。" not in cue.text
+            # Should not have multiple consecutive spaces
+            assert "  " not in cue.text
+            
+        # Check that meaningful content is preserved in each cue
+        text1 = result[0].text
+        assert any(word in text1 for word in ["最初に", "先週", "タスク", "進捗", "報告"])
+        
+        text2 = result[1].text  
+        assert any(word in text2 for word in ["ありがとうございます", "アクション", "アイテム", "整理しましょう"])
+
+    def test_original_vtt_sample_processing(self) -> None:
+        """Test processing that matches the original sample.vtt file content."""
+        config = PreprocessingConfig()
+        preprocessor = TextPreprocessor(config)
+
+        # Actual content from the sample.vtt file
+        cues = [
+            VTTCue(
+                "00:00:00.000",
+                "00:00:05.000",
+                "田中 一郎",
+                "田中 一郎: えー、おはようございます、あのー、今日の会議を、えっと、始めたいと思います。",
+            ),
+            VTTCue(
+                "00:00:05.500",
+                "00:00:11.000",
+                "佐藤 花子",
+                "佐藤 花子: おはようございます、あ、よろしくお願いします。",
+            ),
+            VTTCue(
+                "00:00:10.800",
+                "00:00:14.000",
+                "鈴木 太郎",
+                "鈴木 太郎: あ、すみません、今、音声が、ちょっと、えっと、遅れてまして…。",
+            ),
+        ]
+
+        result = preprocessor.preprocess_cues(cues)
+
+        # Verify that the result looks natural and properly processed
+        assert len(result) == 3
+
+        # Check that speakers are preserved from the text extraction
+        assert result[0].speaker == "田中 一郎"
+        assert result[1].speaker == "佐藤 花子"
+        assert result[2].speaker == "鈴木 太郎"
+
+        # Check that filler words are removed but structure is preserved
+        text1 = result[0].text
+        assert "えー" not in text1
+        assert "あのー" not in text1
+        assert "えっと" not in text1
+        assert "おはようございます" in text1
+        assert "今日の会議" in text1
+        assert "始めたいと思います" in text1
+
+        text2 = result[1].text
+        assert "おはようございます" in text2
+        assert "よろしくお願いします" in text2
+
+        text3 = result[2].text
+        assert "ちょっと" not in text3
+        assert "えっと" not in text3
+        assert "すみません" in text3
+        assert "音声が" in text3
+        assert "遅れてまして" in text3
+
+        # Verify natural punctuation is maintained
+        for cue in result:
+            # Should have appropriate punctuation
+            assert any(p in cue.text for p in ["、", "。", "…"])
+            # Should not have leading punctuation
+            assert not cue.text.startswith("、")
+            # Should not have doubled spaces
+            assert "  " not in cue.text

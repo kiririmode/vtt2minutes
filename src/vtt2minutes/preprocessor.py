@@ -194,8 +194,17 @@ class TextPreprocessor:
         if self.config.fix_transcription_errors:
             text = self._fix_transcription_errors(text)
 
-        # Normalize whitespace
-        text = " ".join(text.split())
+        # Normalize whitespace appropriately for the language
+        if re.search(r"[ひらがなカタカナ漢字]", text):
+            # For Japanese text, normalize spaces more carefully
+            # Remove multiple consecutive spaces but preserve natural breaks
+            text = re.sub(r"\s{2,}", " ", text)
+            # Remove spaces around Japanese punctuation
+            text = re.sub(r"\s*([。、！？])\s*", r"\1", text)
+            text = text.strip()
+        else:
+            # For non-Japanese text, normalize to single spaces
+            text = " ".join(text.split())
 
         return VTTCue(
             start_time=cue.start_time,
@@ -216,20 +225,51 @@ class TextPreprocessor:
         if not self.config.filler_words:
             return text
 
-        # Split by whitespace and punctuation to get individual words
-        words = re.findall(r"[^\s、。，．！？!?]+", text)
-        filtered_words: list[str] = []
+        # Check if text is primarily Japanese
+        is_japanese = bool(re.search(r"[ひらがなカタカナ漢字]", text))
 
-        for word in words:
-            # Remove punctuation for comparison
-            clean_word = re.sub(r"[^\w]", "", word.lower())
-            if clean_word not in self.config.filler_words:
-                filtered_words.append(word)
+        # For Japanese text, split preserving punctuation structure
+        if is_japanese:
+            # Split into segments at punctuation marks, preserving them
+            segments = re.split(r"([、。，．！？])", text)
+            result_segments: list[str] = []
 
-        # Reconstruct text preserving some punctuation
-        result = " ".join(filtered_words)
+            for segment in segments:
+                if segment in ["、", "。", "，", "．", "！", "？"]:
+                    # Keep punctuation as-is
+                    result_segments.append(segment)
+                else:
+                    # Process words in this segment
+                    words = segment.split()
+                    filtered_words: list[str] = []
 
-        # Add back sentence-ending punctuation if original had it
+                    for word in words:
+                        # Remove punctuation for comparison
+                        clean_word = re.sub(r"[^\w]", "", word.lower())
+                        if clean_word not in self.config.filler_words:
+                            filtered_words.append(word)
+
+                    # Join filtered words without extra spaces
+                    if filtered_words:
+                        result_segments.append("".join(filtered_words))
+
+            result = "".join(result_segments)
+            # Clean up leading punctuation
+            result = re.sub(r"^[、，]", "", result)
+        else:
+            # For English/other languages, process normally
+            words = re.findall(r"[^\s、。，．！？!?]+", text)
+            filtered_words: list[str] = []
+
+            for word in words:
+                # Remove punctuation for comparison
+                clean_word = re.sub(r"[^\w]", "", word.lower())
+                if clean_word not in self.config.filler_words:
+                    filtered_words.append(word)
+
+            result = " ".join(filtered_words)
+
+        # Add back sentence-ending punctuation if original had it and result doesn't
         if text.endswith(("。", ".", "！", "!", "？", "?")):
             if not result.endswith(("。", ".", "！", "!", "？", "?")):
                 # Preserve original punctuation type when possible
@@ -237,16 +277,16 @@ class TextPreprocessor:
                     result += "。"
                 elif text.endswith("."):
                     result += "."
-                elif re.search(r"[ひらがなカタカナ漢字]", result):
+                elif is_japanese:
                     result += "。"
                 else:
                     result += "."
-        elif text.strip():  # If original had no ending punctuation but text exists
-            if not result.endswith(("。", ".", "！", "!", "？", "?")):
-                if re.search(r"[ひらがなカタカナ漢字]", result):
-                    result += "。"
-                else:
-                    result += "."
+        elif text.strip() and not result.endswith(("。", ".", "！", "!", "？", "?")):
+            # Add appropriate punctuation if none exists
+            if is_japanese:
+                result += "。"
+            else:
+                result += "."
 
         return result
 
