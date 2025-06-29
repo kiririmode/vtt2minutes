@@ -34,8 +34,9 @@ uv sync
 uv sync --extra dev
 
 # Configure AWS credentials (required)
-export AWS_ACCESS_KEY_ID=your-access-key
-export AWS_SECRET_ACCESS_KEY=your-secret-key
+# Copy the sample environment file and edit it with your credentials
+cp .env.sample .env
+# Or use: export AWS_ACCESS_KEY_ID=your-access-key
 # Or use: aws configure
 ```
 
@@ -206,17 +207,38 @@ VTT2Minutes supports AI-powered meeting minutes generation using Amazon Bedrock,
 
 ### AWS Credentials Setup
 
+#### Option 1: Using Environment Variables (.env file) - Recommended
+
+```bash
+# Copy the sample environment file
+cp .env.sample .env
+
+# Edit .env file with your actual AWS credentials
+# The file contains detailed comments explaining each variable
+AWS_ACCESS_KEY_ID=your-access-key-id
+AWS_SECRET_ACCESS_KEY=your-secret-access-key
+AWS_SESSION_TOKEN=your-session-token  # Optional, for temporary credentials
+```
+
+#### Option 2: Export Environment Variables
+
 ```bash
 # Set environment variables
 export AWS_ACCESS_KEY_ID=your-access-key-id
 export AWS_SECRET_ACCESS_KEY=your-secret-access-key
 export AWS_SESSION_TOKEN=your-session-token  # Optional, for temporary credentials
+```
 
+#### Option 3: Using AWS CLI Profile
+
+```bash
 # Or using AWS CLI profile
 aws configure set aws_access_key_id your-access-key-id
 aws configure set aws_secret_access_key your-secret-access-key
 aws configure set region us-east-1
 ```
+
+**Note**: The `.env.sample` file contains comprehensive documentation about all configuration options, security best practices, and alternative authentication methods.
 
 ### Supported Models
 
@@ -226,7 +248,8 @@ aws configure set region us-east-1
 
 ### Bedrock Options
 
-- `--bedrock-model`: Specify the Bedrock model ID to use
+- `--bedrock-model`: Specify the Bedrock model ID to use (mutually exclusive with --bedrock-inference-profile-id)
+- `--bedrock-inference-profile-id`: Specify the Bedrock inference profile ID to use (mutually exclusive with --bedrock-model)
 - `--bedrock-region`: AWS region for Bedrock (default: us-east-1)
 - `--intermediate-file`: Path to save intermediate preprocessed file
 
@@ -239,6 +262,11 @@ uv run python -m vtt2minutes meeting.vtt
 # With custom model and region
 uv run python -m vtt2minutes meeting.vtt \
   --bedrock-model anthropic.claude-3-sonnet-20240229-v1:0 \
+  --bedrock-region us-west-2
+
+# Using inference profile ID instead of model ID
+uv run python -m vtt2minutes meeting.vtt \
+  --bedrock-inference-profile-id your-inference-profile-id \
   --bedrock-region us-west-2
 
 # Save intermediate file for inspection
