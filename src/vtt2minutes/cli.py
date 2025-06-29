@@ -54,8 +54,17 @@ console = Console()
 @click.option(
     "--bedrock-model",
     type=str,
-    default="anthropic.claude-3-haiku-20240307-v1:0",
-    help="Bedrock model ID to use (default: Claude 3 Haiku)",
+    help=(
+        "Bedrock model ID to use "
+        "(mutually exclusive with --bedrock-inference-profile-id)"
+    ),
+)
+@click.option(
+    "--bedrock-inference-profile-id",
+    type=str,
+    help=(
+        "Bedrock inference profile ID to use (mutually exclusive with --bedrock-model)"
+    ),
 )
 @click.option(
     "--bedrock-region",
@@ -84,7 +93,8 @@ def main(
     merge_threshold: float,
     duplicate_threshold: float,
     filter_words_file: Path | None,
-    bedrock_model: str,
+    bedrock_model: str | None,
+    bedrock_inference_profile_id: str | None,
     bedrock_region: str,
     intermediate_file: Path | None,
     prompt_template: Path | None,
@@ -95,6 +105,9 @@ def main(
 
     This tool processes VTT (WebVTT) transcript files from Microsoft Teams
     and generates AI-powered meeting minutes using Amazon Bedrock.
+
+    You must specify either --bedrock-model or --bedrock-inference-profile-id,
+    but not both.
 
     Example usage:
 
@@ -223,10 +236,27 @@ def main(
             # Step 3: Generate AI-powered meeting minutes using Bedrock
             task3 = progress.add_task("AI議事録を生成中...", total=None)
             try:
+                # Validate exactly one of model_id or inference_profile_id is provided
+                if bedrock_model and bedrock_inference_profile_id:
+                    console.print(
+                        "[red]エラー: --bedrock-model と "
+                        "--bedrock-inference-profile-id の両方を指定することは"
+                        "できません。どちらか一方のみを指定してください。[/red]"
+                    )
+                    sys.exit(1)
+                if not bedrock_model and not bedrock_inference_profile_id:
+                    console.print(
+                        "[red]エラー: --bedrock-model または "
+                        "--bedrock-inference-profile-id のどちらか一方を"
+                        "指定してください。[/red]"
+                    )
+                    sys.exit(1)
+
                 # Use Amazon Bedrock for AI-powered meeting minutes generation
                 bedrock_generator = BedrockMeetingMinutesGenerator(
                     region_name=bedrock_region,
                     model_id=bedrock_model,
+                    inference_profile_id=bedrock_inference_profile_id,
                     prompt_template_file=prompt_template,
                 )
 
@@ -241,7 +271,12 @@ def main(
                 progress.update(task3, description="✓ AI議事録生成完了")
 
                 if verbose:
-                    console.print(f"Bedrockモデル: {bedrock_model}")
+                    if bedrock_model:
+                        console.print(f"Bedrockモデル: {bedrock_model}")
+                    if bedrock_inference_profile_id:
+                        console.print(
+                            f"Bedrock推論プロファイル: {bedrock_inference_profile_id}"
+                        )
                     console.print(f"リージョン: {bedrock_region}")
                     console.print()
 
