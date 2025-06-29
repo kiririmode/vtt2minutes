@@ -120,26 +120,15 @@ mkdir -p "$OUTPUT_DIR"
 print_info "Building binary for $PLATFORM..."
 echo ""
 
-# Set platform-specific options
-PYINSTALLER_ARGS=""
+# Set expected binary name (PyInstaller adds .exe automatically on Windows)
 BINARY_NAME="vtt2minutes"
-
-case "$PLATFORM" in
-    windows)
-        BINARY_NAME="vtt2minutes.exe"
-        PYINSTALLER_ARGS="--target-arch=x86_64"
-        ;;
-    linux)
-        PYINSTALLER_ARGS="--target-arch=x86_64"
-        ;;
-    macos)
-        PYINSTALLER_ARGS="--target-arch=x86_64"
-        ;;
-esac
+if [[ "$PLATFORM" == "windows" ]] || [[ "$(uname -s)" == MINGW* ]] || [[ "$(uname -s)" == CYGWIN* ]] || [[ "$(uname -s)" == MSYS* ]]; then
+    BINARY_NAME="vtt2minutes.exe"
+fi
 
 # Run PyInstaller
 print_info "Running PyInstaller..."
-if ! uv run pyinstaller vtt2minutes.spec $PYINSTALLER_ARGS --distpath "$OUTPUT_DIR" --workpath build; then
+if ! uv run pyinstaller vtt2minutes.spec --distpath "$OUTPUT_DIR" --workpath build; then
     print_error "PyInstaller build failed"
     exit 1
 fi
