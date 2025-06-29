@@ -5,7 +5,7 @@ A Python tool that automatically generates AI-powered meeting minutes from Micro
 ## Features
 
 - **VTT File Parsing**: Analyze Microsoft Teams WebVTT format transcripts
-- **Advanced Preprocessing**: Improve transcription quality through filler word removal, noise reduction, and duplicate elimination
+- **Advanced Preprocessing**: Improve transcription quality through filler word removal, word replacement, noise reduction, and duplicate elimination
 - **Japanese & English Support**: Handle filler words and punctuation in both languages
 - **AI-Powered Meeting Minutes**: Generate intelligent, context-aware meeting minutes using Amazon Bedrock
 - **Speaker Identification**: Identify and properly categorize each speaker's contributions
@@ -72,6 +72,9 @@ uv run python -m vtt2minutes meeting.vtt \
 
 # Use custom filler words file
 uv run python -m vtt2minutes meeting.vtt --filter-words-file my_filter_words.txt
+
+# Use custom word replacement rules
+uv run python -m vtt2minutes meeting.vtt --replacement-rules-file replacement_rules.txt
 
 # Specify Bedrock model and region
 uv run python -m vtt2minutes meeting.vtt \
@@ -240,18 +243,70 @@ aws configure set region ap-northeast-1
 
 **Note**: The `.env.sample` file contains comprehensive documentation about all configuration options, security best practices, and alternative authentication methods.
 
+## Configuration Files
+
+### Replacement Rules (`replacement_rules.txt`)
+
+Customize word replacement during preprocessing to standardize technical terms and abbreviations:
+
+```text
+# Technology terms (技術用語の統一)
+ベッドロック -> Bedrock
+ラムダ -> Lambda
+エス3 -> S3
+イーシー2 -> EC2
+
+# Company names (会社・製品名の統一)
+アマゾン -> Amazon
+グーグル -> Google
+
+# Common abbreviations (一般的な略語)
+アイティー -> IT
+エーピーアイ -> API
+ディービー -> DB
+```
+
+**Usage:**
+```bash
+uv run python -m vtt2minutes meeting.vtt --replacement-rules-file replacement_rules.txt
+```
+
+### Filter Words (`filter_words.txt`)
+
+Customize filler words and transcription artifacts to remove during preprocessing. See the included `filter_words.txt` for examples of Japanese and English filler words.
+
+**Usage:**
+```bash
+uv run python -m vtt2minutes meeting.vtt --filter-words-file my_custom_filter.txt
+```
+
 ### Supported Models
 
 - **Claude 3 Haiku** (default): `anthropic.claude-3-haiku-20240307-v1:0`
 - **Claude 3 Sonnet**: `anthropic.claude-3-sonnet-20240229-v1:0`
 - **Claude 3 Opus**: `anthropic.claude-3-opus-20240229-v1:0`
 
-### Bedrock Options
+### Command Line Options
 
+**Preprocessing Options:**
+- `--replacement-rules-file`: Path to custom word replacement rules file
+- `--filter-words-file`: Path to custom filler words file
+- `--min-duration`: Minimum cue duration in seconds (default: 0.5)
+- `--merge-threshold`: Time gap threshold for merging cues (default: 2.0)
+- `--duplicate-threshold`: Similarity threshold for duplicate detection (default: 0.8)
+- `--no-preprocessing`: Skip text preprocessing step
+
+**Bedrock Options:**
 - `--bedrock-model`: Specify the Bedrock model ID to use (mutually exclusive with --bedrock-inference-profile-id)
 - `--bedrock-inference-profile-id`: Specify the Bedrock inference profile ID to use (mutually exclusive with --bedrock-model)
 - `--bedrock-region`: AWS region for Bedrock (default: ap-northeast-1)
+
+**Output Options:**
+- `--output`, `-o`: Output file path (default: input_file.md)
 - `--intermediate-file`: Path to save intermediate preprocessed file
+- `--title`, `-t`: Meeting title for the minutes
+- `--verbose`, `-v`: Enable verbose output
+- `--stats`: Show preprocessing statistics
 
 ### Example Usage
 
@@ -276,10 +331,16 @@ uv run python -m vtt2minutes meeting.vtt \
 
 ### How It Works
 
-1. **Preprocessing**: VTT file is processed to remove filler words and clean up transcription
-2. **Intermediate File**: Preprocessed content is saved in structured Markdown format
-3. **AI Generation**: Bedrock model analyzes the intermediate file and generates comprehensive meeting minutes
-4. **Output**: AI-generated minutes are saved in final output file
+1. **VTT Parsing**: Parse Microsoft Teams VTT transcript files and extract speaker information
+2. **Preprocessing**: Clean and improve transcript quality through multiple steps:
+   - **Word Replacement**: Replace technical terms and abbreviations (e.g., "ベッドロック" → "Bedrock")
+   - **Filler Word Removal**: Remove common filler words and transcription artifacts
+   - **Noise Reduction**: Clean up transcription errors and normalize text
+   - **Duplicate Elimination**: Remove redundant or similar content
+   - **Speaker Consolidation**: Merge consecutive utterances from the same speaker
+3. **Intermediate File**: Preprocessed content is saved in structured Markdown format for inspection
+4. **AI Generation**: Bedrock model analyzes the intermediate file and generates comprehensive meeting minutes
+5. **Output**: AI-generated minutes are saved in final output file with structured sections
 
 ### Benefits of AI-Powered Minutes
 
