@@ -5,6 +5,7 @@ from tempfile import NamedTemporaryFile
 from unittest.mock import Mock, patch
 
 import pytest
+
 from vtt2minutes.bedrock import BedrockError, BedrockMeetingMinutesGenerator
 
 
