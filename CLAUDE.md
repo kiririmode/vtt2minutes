@@ -1,3 +1,6 @@
+ユーザに対しては日本語で回答すること
+ソースコードやコメント等は英語で記載すること
+
 # Development Guidelines
 
 This document contains critical information about working with this codebase. Follow these guidelines precisely.
@@ -26,7 +29,7 @@ This document contains critical information about working with this codebase. Fo
    - Bug fixes require regression tests
 
 - For commits fixing bugs or adding features based on user reports add:
-  ```bash
+```bash
   git commit --trailer "Reported-by:<name>"
   ```
   Where `<name>` is the name of the user.
