@@ -13,15 +13,34 @@ A Python tool that automatically generates AI-powered meeting minutes from Micro
 
 ## Installation
 
-### Requirements
+### Option 1: Standalone Binaries (Recommended)
 
+Download pre-built binaries from the [Releases page](https://github.com/vtt2minutes/vtt2minutes/releases):
+
+**Linux (x86_64):**
+```bash
+# Download and extract
+wget https://github.com/vtt2minutes/vtt2minutes/releases/latest/download/vtt2minutes-linux-x86_64.tar.gz
+tar -xzf vtt2minutes-linux-x86_64.tar.gz
+
+# Run directly
+./vtt2minutes --help
+```
+
+**Windows (x86_64):**
+1. Download `vtt2minutes-windows-x86_64.zip` from releases
+2. Extract the zip file
+3. Run `vtt2minutes.exe --help` in Command Prompt or PowerShell
+
+### Option 2: Python Installation
+
+**Requirements:**
 - Python 3.12 or higher
 - uv (recommended package manager)
 - AWS Account with Amazon Bedrock access
 - AWS credentials configured
 
-### Setup
-
+**Setup:**
 ```bash
 # Clone the repository
 git clone <repository-url>
@@ -375,6 +394,42 @@ uv run python -m vtt2minutes meeting.vtt --verbose
 - `Missing environment variables`: Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
 - `Bedrock is not available in region`: Use a supported region like us-east-1
 - `Invalid credentials`: Check your AWS access keys and permissions
+
+## Building Binaries
+
+### Build Locally
+
+```bash
+# Install development dependencies
+uv sync --extra dev
+
+# Build for current platform
+./scripts/build-binary.sh
+
+# Build for specific platform
+./scripts/build-binary.sh --platform linux
+./scripts/build-binary.sh --platform windows
+
+# Clean build
+./scripts/build-binary.sh --clean
+
+# Custom output directory
+./scripts/build-binary.sh --output-dir my-dist
+```
+
+### Build Requirements
+
+- **Linux**: Builds native Linux x86_64 binary
+- **Windows**: Requires Windows environment or cross-compilation setup
+- **Dependencies**: All Python dependencies are bundled into the binary
+- **Size**: Approximately 60-80MB per binary (includes Python runtime)
+
+### GitHub Actions
+
+Binaries are automatically built for Linux and Windows on:
+- Push to `main` branch
+- Pull requests
+- Version tags (creates GitHub release with binaries)
 
 ## Development
 

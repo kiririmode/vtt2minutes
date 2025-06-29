@@ -36,6 +36,7 @@ dev = [
     "ruff>=0.1.0",
     "pyright>=1.1.0",
     "pip-audit>=2.6.0",
+    "pyinstaller>=6.0.0",
 ]
 
 [project.scripts]

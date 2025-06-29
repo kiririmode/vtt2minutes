@@ -1,0 +1,201 @@
+name: Build Binaries
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  FORCE_COLOR: 0
+  NO_COLOR: 1
+
+jobs:
+  build-linux:
+    name: Build Linux Binary
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+
+    - name: Set up Python
+      run: uv python install 3.12
+
+    - name: Install dependencies
+      run: uv sync --extra dev
+
+    - name: Build Linux binary
+      run: ./scripts/build-binary.sh --platform linux
+
+    - name: Test binary
+      run: |
+        echo "Testing Linux binary..."
+        ./dist/vtt2minutes --help
+        echo "Binary test completed successfully"
+
+    - name: Upload Linux binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: vtt2minutes-linux-x86_64
+        path: dist/vtt2minutes
+        retention-days: 30
+
+  build-windows:
+    name: Build Windows Binary
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+
+    - name: Set up Python
+      run: uv python install 3.12
+
+    - name: Install dependencies
+      run: uv sync --extra dev
+
+    - name: Build Windows binary
+      run: |
+        # Use PowerShell to run the build script
+        bash ./scripts/build-binary.sh --platform windows
+
+    - name: Test binary
+      run: |
+        echo "Testing Windows binary..."
+        ./dist/vtt2minutes.exe --help
+        echo "Binary test completed successfully"
+
+    - name: Upload Windows binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: vtt2minutes-windows-x86_64
+        path: dist/vtt2minutes.exe
+        retention-days: 30
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download Linux binary
+      uses: actions/download-artifact@v4
+      with:
+        name: vtt2minutes-linux-x86_64
+        path: ./binaries/linux/
+
+    - name: Download Windows binary
+      uses: actions/download-artifact@v4
+      with:
+        name: vtt2minutes-windows-x86_64
+        path: ./binaries/windows/
+
+    - name: Prepare release assets
+      run: |
+        # Create release directory structure
+        mkdir -p release
+        
+        # Package Linux binary
+        cd binaries/linux
+        tar -czf ../../release/vtt2minutes-linux-x86_64.tar.gz vtt2minutes
+        cd ../..
+        
+        # Package Windows binary
+        cd binaries/windows
+        zip ../../release/vtt2minutes-windows-x86_64.zip vtt2minutes.exe
+        cd ../..
+        
+        # List release assets
+        echo "Release assets:"
+        ls -la release/
+
+    - name: Extract version from tag
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Create release notes
+      id: release_notes
+      run: |
+        # Generate release notes
+        echo "## VTT2Minutes ${{ steps.version.outputs.tag }}" > release_notes.md
+        echo "" >> release_notes.md
+        echo "Standalone binaries for Linux and Windows." >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### Downloads" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "- **Linux (x86_64)**: \`vtt2minutes-linux-x86_64.tar.gz\`" >> release_notes.md
+        echo "- **Windows (x86_64)**: \`vtt2minutes-windows-x86_64.zip\`" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### Usage" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "\`\`\`bash" >> release_notes.md
+        echo "# Linux" >> release_notes.md
+        echo "tar -xzf vtt2minutes-linux-x86_64.tar.gz" >> release_notes.md
+        echo "./vtt2minutes --help" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "# Windows" >> release_notes.md
+        echo "# Extract vtt2minutes-windows-x86_64.zip" >> release_notes.md
+        echo "vtt2minutes.exe --help" >> release_notes.md
+        echo "\`\`\`" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### Requirements" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "- AWS credentials configured for Amazon Bedrock access" >> release_notes.md
+        echo "- Internet connection for AI-powered meeting minutes generation" >> release_notes.md
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.version.outputs.tag }}
+        name: VTT2Minutes ${{ steps.version.outputs.tag }}
+        body_path: release_notes.md
+        files: |
+          release/vtt2minutes-linux-x86_64.tar.gz
+          release/vtt2minutes-windows-x86_64.zip
+        draft: false
+        prerelease: ${{ contains(steps.version.outputs.version, 'rc') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'alpha') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-windows]
+    if: always()
+    
+    steps:
+    - name: Build status summary
+      run: |
+        echo "## Binary Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Platform | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Linux | ${{ needs.build-linux.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Windows | ${{ needs.build-windows.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [[ "${{ needs.build-linux.result }}" == "success" && "${{ needs.build-windows.result }}" == "success" ]]; then
+          echo "🎉 All binaries built successfully!" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ Some builds failed. Check the individual job logs for details." >> $GITHUB_STEP_SUMMARY
+        fi
