@@ -235,7 +235,7 @@ export AWS_SESSION_TOKEN=your-session-token  # Optional, for temporary credentia
 # Or using AWS CLI profile
 aws configure set aws_access_key_id your-access-key-id
 aws configure set aws_secret_access_key your-secret-access-key
-aws configure set region us-east-1
+aws configure set region ap-northeast-1
 ```
 
 **Note**: The `.env.sample` file contains comprehensive documentation about all configuration options, security best practices, and alternative authentication methods.
@@ -250,7 +250,7 @@ aws configure set region us-east-1
 
 - `--bedrock-model`: Specify the Bedrock model ID to use (mutually exclusive with --bedrock-inference-profile-id)
 - `--bedrock-inference-profile-id`: Specify the Bedrock inference profile ID to use (mutually exclusive with --bedrock-model)
-- `--bedrock-region`: AWS region for Bedrock (default: us-east-1)
+- `--bedrock-region`: AWS region for Bedrock (default: ap-northeast-1)
 - `--intermediate-file`: Path to save intermediate preprocessed file
 
 ### Example Usage
@@ -264,10 +264,9 @@ uv run python -m vtt2minutes meeting.vtt \
   --bedrock-model anthropic.claude-3-sonnet-20240229-v1:0 \
   --bedrock-region us-west-2
 
-# Using inference profile ID instead of model ID
+# Using APAC inference profile ID (default region: ap-northeast-1)
 uv run python -m vtt2minutes meeting.vtt \
-  --bedrock-inference-profile-id your-inference-profile-id \
-  --bedrock-region us-west-2
+  --bedrock-inference-profile-id apac.anthropic.claude-sonnet-4-20250514-v1:0
 
 # Save intermediate file for inspection
 uv run python -m vtt2minutes meeting.vtt \

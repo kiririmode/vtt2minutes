@@ -69,8 +69,8 @@ console = Console()
 @click.option(
     "--bedrock-region",
     type=str,
-    default="us-east-1",
-    help="AWS region for Bedrock (default: us-east-1)",
+    default="ap-northeast-1",
+    help="AWS region for Bedrock (default: ap-northeast-1)",
 )
 @click.option(
     "--intermediate-file",
