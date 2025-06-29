@@ -26,9 +26,9 @@ class BedrockMeetingMinutesGenerator:
         """Initialize the Bedrock client.
 
         Args:
-            aws_access_key_id: AWS access key ID (defaults to env var)
-            aws_secret_access_key: AWS secret access key (defaults to env var)
-            aws_session_token: AWS session token (defaults to env var)
+            aws_access_key_id: AWS access key ID (optional, uses default credentials chain if not provided)
+            aws_secret_access_key: AWS secret access key (optional, uses default credentials chain if not provided)
+            aws_session_token: AWS session token (optional, uses default credentials chain if not provided)
             region_name: AWS region name
             model_id: Bedrock model ID to use
             validate_access: Whether to validate access during initialization
@@ -36,36 +36,27 @@ class BedrockMeetingMinutesGenerator:
         self.model_id = model_id
         self.region_name = region_name
 
-        # Get AWS credentials from environment variables if not provided
-        self.aws_access_key_id = aws_access_key_id or os.getenv("AWS_ACCESS_KEY_ID")
-        self.aws_secret_access_key = aws_secret_access_key or os.getenv(
-            "AWS_SECRET_ACCESS_KEY"
-        )
-        self.aws_session_token = aws_session_token or os.getenv("AWS_SESSION_TOKEN")
-
-        # Validate credentials
-        if not self.aws_access_key_id or not self.aws_secret_access_key:
-            missing_vars: list[str] = []
-            if not self.aws_access_key_id:
-                missing_vars.append("AWS_ACCESS_KEY_ID")
-            if not self.aws_secret_access_key:
-                missing_vars.append("AWS_SECRET_ACCESS_KEY")
-
-            raise ValueError(
-                f"AWS credentials not found. Missing environment variables: "
-                f"{', '.join(missing_vars)}. Please set these variables or provide "
-                f"them directly to the constructor."
-            )
+        # Store provided credentials (may be None to use default credential chain)
+        self.aws_access_key_id = aws_access_key_id
+        self.aws_secret_access_key = aws_secret_access_key
+        self.aws_session_token = aws_session_token
 
         # Initialize Bedrock client
         try:
-            self.bedrock_client = boto3.client(  # type: ignore[assignment]
-                "bedrock-runtime",
-                aws_access_key_id=self.aws_access_key_id,
-                aws_secret_access_key=self.aws_secret_access_key,
-                aws_session_token=self.aws_session_token,
-                region_name=self.region_name,
-            )
+            # Create client configuration
+            client_kwargs = {"region_name": self.region_name}
+            
+            # Only add credentials if they are explicitly provided
+            if self.aws_access_key_id and self.aws_secret_access_key:
+                client_kwargs.update({
+                    "aws_access_key_id": self.aws_access_key_id,
+                    "aws_secret_access_key": self.aws_secret_access_key,
+                })
+                if self.aws_session_token:
+                    client_kwargs["aws_session_token"] = self.aws_session_token
+            
+            self.bedrock_client = boto3.client("bedrock-runtime", **client_kwargs)  # type: ignore[assignment]
+            
             # Validate credentials and region by attempting to list models
             if validate_access:
                 self._validate_bedrock_access()
@@ -104,27 +95,33 @@ class BedrockMeetingMinutesGenerator:
             ) from e
 
     def _validate_bedrock_access(self) -> None:
-        """Validate that we can access Bedrock with the provided credentials.
+        """Validate that we can access Bedrock with the current credentials.
 
         Raises:
             BedrockError: If credentials or region are invalid
         """
         try:
+            # Create client configuration for bedrock service
+            client_kwargs = {"region_name": self.region_name}
+            
+            # Only add credentials if they are explicitly provided
+            if self.aws_access_key_id and self.aws_secret_access_key:
+                client_kwargs.update({
+                    "aws_access_key_id": self.aws_access_key_id,
+                    "aws_secret_access_key": self.aws_secret_access_key,
+                })
+                if self.aws_session_token:
+                    client_kwargs["aws_session_token"] = self.aws_session_token
+            
             # Try to get foundation models to validate access
-            bedrock_client = boto3.client(  # type: ignore[assignment]
-                "bedrock",
-                aws_access_key_id=self.aws_access_key_id,
-                aws_secret_access_key=self.aws_secret_access_key,
-                aws_session_token=self.aws_session_token,
-                region_name=self.region_name,
-            )
+            bedrock_client = boto3.client("bedrock", **client_kwargs)  # type: ignore[assignment]
             bedrock_client.list_foundation_models()  # type: ignore[misc]
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "Unknown")  # type: ignore[misc]
             if error_code == "UnauthorizedOperation":
                 raise BedrockError(
                     "AWS credentials are invalid or lack Bedrock permissions. "
-                    "Please check your AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY."
+                    "Please check your AWS credentials configuration."
                 ) from e
             elif error_code == "InvalidRequestException":
                 raise BedrockError(
@@ -280,13 +277,19 @@ class BedrockMeetingMinutesGenerator:
             BedrockError: If the API call fails
         """
         try:
-            bedrock_client = boto3.client(  # type: ignore[assignment]
-                "bedrock",
-                aws_access_key_id=self.aws_access_key_id,
-                aws_secret_access_key=self.aws_secret_access_key,
-                aws_session_token=self.aws_session_token,
-                region_name=self.region_name,
-            )
+            # Create client configuration for bedrock service
+            client_kwargs = {"region_name": self.region_name}
+            
+            # Only add credentials if they are explicitly provided
+            if self.aws_access_key_id and self.aws_secret_access_key:
+                client_kwargs.update({
+                    "aws_access_key_id": self.aws_access_key_id,
+                    "aws_secret_access_key": self.aws_secret_access_key,
+                })
+                if self.aws_session_token:
+                    client_kwargs["aws_session_token"] = self.aws_session_token
+            
+            bedrock_client = boto3.client("bedrock", **client_kwargs)  # type: ignore[assignment]
 
             response = bedrock_client.list_foundation_models()  # type: ignore[misc]
             return [
