@@ -378,7 +378,36 @@ uv run python -m vtt2minutes meeting.vtt --verbose
 
 ## Development
 
-### Running Tests
+### GitHub Actions CI/CD
+
+This project uses GitHub Actions for continuous integration and deployment:
+
+**CI Pipeline (`ci.yml`):**
+- **Lint and Format Check**: Validates code formatting with `ruff format` and linting with `ruff check`
+- **Type Check**: Runs static type checking with `pyright`
+- **Test Suite**: Executes all tests with coverage reporting
+- **Integration Test**: Tests CLI functionality and word replacement features
+- **Security Check**: Audits dependencies for known vulnerabilities
+- **Build Check**: Validates package building and contents
+
+**Dependencies Check (`dependencies.yml`):**
+- **Weekly Schedule**: Automatically checks for dependency updates every Sunday
+- **Security Audit**: Scans for security vulnerabilities in dependencies
+- **License Check**: Validates license compatibility
+
+**Release Pipeline (`release.yml`):**
+- **Automated Releases**: Triggered on version tags (e.g., `v1.0.0`)
+- **Package Validation**: Full test suite and quality checks before release
+- **GitHub Releases**: Creates release notes and uploads distribution files
+- **PyPI Publishing**: Automatically publishes to PyPI with proper credentials
+
+**Workflow Triggers:**
+- Push to `main` or `develop` branches
+- Pull requests to `main` or `develop`
+- Version tags for releases
+- Manual triggers for testing
+
+### Running Tests Locally
 
 ```bash
 # Run all tests

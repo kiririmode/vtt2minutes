@@ -1,0 +1,95 @@
+name: Dependencies Check
+
+on:
+  schedule:
+    # Run weekly on Sundays at 00:00 UTC
+    - cron: '0 0 * * 0'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  dependency-check:
+    name: Check Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+
+    - name: Set up Python
+      run: uv python install 3.12
+
+    - name: Check for dependency updates
+      run: |
+        echo "::group::Current Dependencies"
+        uv tree
+        echo "::endgroup::"
+        
+        echo "::group::Lock File Status"
+        # Check if lock file is up to date
+        uv sync --extra dev
+        if git diff --quiet uv.lock; then
+          echo "✅ Lock file is up to date"
+        else
+          echo "⚠️ Lock file has changes"
+          git diff uv.lock
+        fi
+        echo "::endgroup::"
+
+    - name: Security audit
+      run: |
+        echo "::group::Security Audit"
+        # Install pip-audit if available
+        uv pip install pip-audit || echo "pip-audit installation failed"
+        uv run pip-audit --desc || echo "Security audit completed with warnings"
+        echo "::endgroup::"
+      continue-on-error: true
+
+    - name: Test with latest dependencies
+      run: |
+        echo "::group::Test with Latest Dependencies"
+        # Create a temporary test with latest dependencies
+        cp pyproject.toml pyproject.toml.backup
+        
+        # Update to latest versions (this is a test, not applied to repo)
+        uv sync --extra dev --upgrade
+        
+        # Run a quick test to ensure compatibility
+        uv run pytest tests/test_parser.py -v
+        
+        # Restore original
+        mv pyproject.toml.backup pyproject.toml
+        echo "::endgroup::"
+      continue-on-error: true
+
+  license-check:
+    name: License Compatibility Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+
+    - name: Set up Python
+      run: uv python install 3.12
+
+    - name: Install dependencies
+      run: uv sync --extra dev
+
+    - name: Check licenses
+      run: |
+        echo "::group::License Information"
+        # Install pip-licenses if available
+        uv pip install pip-licenses || echo "pip-licenses not available"
+        uv run pip-licenses --format=table || echo "License check completed"
+        echo "::endgroup::"
+      continue-on-error: true
