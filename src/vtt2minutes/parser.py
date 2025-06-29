@@ -103,7 +103,7 @@ class VTTParser:
         if not lines or not lines[0].strip().startswith("WEBVTT"):
             raise ValueError("Invalid VTT file: missing WEBVTT header")
 
-        cues = []
+        cues: list[VTTCue] = []
         i = 1  # Skip WEBVTT header
 
         while i < len(lines):
@@ -121,7 +121,7 @@ class VTTParser:
                 end_time = timing_match.group(2)
 
                 # Collect text lines until next timing line or end
-                text_lines = []
+                text_lines: list[str] = []
                 i += 1
 
                 while i < len(lines):
@@ -182,11 +182,11 @@ class VTTParser:
         Returns:
             List of unique speaker names
         """
-        speakers = set()
+        speakers: set[str] = set()
         for cue in cues:
             if cue.speaker:
                 speakers.add(cue.speaker)
-        return sorted(list(speakers))
+        return sorted(speakers)
 
     def get_duration(self, cues: list[VTTCue]) -> float:
         """Get total duration of the transcript.

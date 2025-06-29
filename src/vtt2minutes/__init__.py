@@ -1,4 +1,4 @@
-"""VTT2Minutes - Convert Microsoft Teams VTT transcripts to structured meeting minutes."""
+"""VTT2Minutes - Convert Teams VTT transcripts to structured meeting minutes."""
 
 __version__ = "0.1.0"
 __author__ = "VTT2Minutes Contributors"

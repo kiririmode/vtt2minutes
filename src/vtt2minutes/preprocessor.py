@@ -170,7 +170,7 @@ class TextPreprocessor:
 
         # Split by whitespace and punctuation to get individual words
         words = re.findall(r"[^\s、。，．！？!?]+", text)
-        filtered_words = []
+        filtered_words: list[str] = []
 
         for word in words:
             # Remove punctuation for comparison
@@ -225,7 +225,7 @@ class TextPreprocessor:
         Returns:
             List of valid cues
         """
-        valid_cues = []
+        valid_cues: list[VTTCue] = []
 
         for cue in cues:
             # Check minimum text length
@@ -306,7 +306,7 @@ class TextPreprocessor:
         if len(cues) <= 1:
             return cues
 
-        merged_cues = []
+        merged_cues: list[VTTCue] = []
         current_cue = cues[0]
 
         for next_cue in cues[1:]:

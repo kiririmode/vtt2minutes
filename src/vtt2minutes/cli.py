@@ -90,13 +90,13 @@ def main(
         # Initialize components
         parser = VTTParser()
 
-        if not no_preprocessing:
-            config = PreprocessingConfig(
-                min_duration=min_duration,
-                merge_gap_threshold=merge_threshold,
-                duplicate_threshold=duplicate_threshold,
-            )
-            preprocessor = TextPreprocessor(config)
+        # Initialize preprocessor (even if not used, to avoid unbound variable)
+        config = PreprocessingConfig(
+            min_duration=min_duration,
+            merge_gap_threshold=merge_threshold,
+            duplicate_threshold=duplicate_threshold,
+        )
+        preprocessor = TextPreprocessor(config)
 
         summarizer = MeetingSummarizer()
 

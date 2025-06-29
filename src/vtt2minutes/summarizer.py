@@ -57,7 +57,7 @@ class MeetingSummary:
         Returns:
             Formatted Markdown string
         """
-        lines = []
+        lines: list[str] = []
 
         # Header
         lines.append(f"# {self.title}")
@@ -274,7 +274,7 @@ class MeetingSummarizer:
             if cue.speaker:
                 speakers.add(cue.speaker)
 
-        return sorted(list(speakers))
+        return sorted(speakers)
 
     def _format_duration(self, seconds: float) -> str:
         """Format duration in seconds to HH:MM:SS format.
@@ -303,10 +303,10 @@ class MeetingSummarizer:
         # this could use NLP techniques or AI for better summarization
 
         total_words = sum(len(cue.text.split()) for cue in cues)
-        speaker_count = len(set(cue.speaker for cue in cues if cue.speaker))
+        speaker_count = len({cue.speaker for cue in cues if cue.speaker})
 
         # Extract first few significant statements
-        significant_statements = []
+        significant_statements: list[str] = []
         for cue in cues[:5]:  # Look at first 5 cues
             if len(cue.text) > 20:  # Only include substantial text
                 significant_statements.append(cue.text[:100] + "...")
@@ -331,7 +331,7 @@ class MeetingSummarizer:
         Returns:
             List of key points
         """
-        key_points = []
+        key_points: list[str] = []
 
         # Look for important statements (longer texts, questions, decisions)
         for cue in cues:
@@ -378,7 +378,7 @@ class MeetingSummarizer:
         Returns:
             List of decisions
         """
-        decisions = []
+        decisions: list[Decision] = []
 
         for cue in cues:
             text = cue.text.lower()
@@ -403,7 +403,7 @@ class MeetingSummarizer:
         Returns:
             List of action items
         """
-        action_items = []
+        action_items: list[ActionItem] = []
 
         for cue in cues:
             text = cue.text.lower()
@@ -467,8 +467,8 @@ class MeetingSummarizer:
         Returns:
             List of meeting sections
         """
-        sections = []
-        current_section = []
+        sections: list[MeetingSection] = []
+        current_section: list[VTTCue] = []
         current_speaker = None
         section_start = None
 

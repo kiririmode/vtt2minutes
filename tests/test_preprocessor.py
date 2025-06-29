@@ -223,7 +223,7 @@ class TestTextPreprocessor:
         assert "最初の発言" in result_texts
         assert "続きの発言" in result_texts
         assert "別の人の発言" in result_texts
-        
+
         # Check that we have both speakers
         speakers = {cue.speaker for cue in result}
         assert "田中" in speakers
@@ -266,7 +266,7 @@ class TestTextPreprocessor:
         result = preprocessor.preprocess_cues(cues)
 
         assert "これは日本語の文章" in result[0].text
-        assert "This is English" in result[1].text  
+        assert "This is English" in result[1].text
         assert "既に句読点があります" in result[2].text
         assert "複数の" in result[3].text and "句読点" in result[3].text
 
