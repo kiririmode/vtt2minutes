@@ -1,7 +1,6 @@
 """Tests for Amazon Bedrock integration."""
 
 import json
-import os
 from unittest.mock import Mock, patch
 
 import pytest
@@ -31,27 +30,23 @@ class TestBedrockMeetingMinutesGenerator:
         """Test initialization using default credential chain."""
         generator = BedrockMeetingMinutesGenerator()
 
-        # When no explicit credentials are provided, should use None for AWS default credential chain
+        # When no explicit credentials are provided, should use None for AWS default
         assert generator.aws_access_key_id is None
         assert generator.aws_secret_access_key is None
         assert generator.aws_session_token is None
 
     def test_init_with_partial_credentials_access_key_only(self) -> None:
         """Test initialization with only access key provided."""
-        generator = BedrockMeetingMinutesGenerator(
-            aws_access_key_id="test_key"
-        )
-        
+        generator = BedrockMeetingMinutesGenerator(aws_access_key_id="test_key")
+
         # Should store provided access key but leave secret as None
         assert generator.aws_access_key_id == "test_key"
         assert generator.aws_secret_access_key is None
 
     def test_init_with_partial_credentials_secret_only(self) -> None:
         """Test initialization with only secret key provided."""
-        generator = BedrockMeetingMinutesGenerator(
-            aws_secret_access_key="test_secret"
-        )
-        
+        generator = BedrockMeetingMinutesGenerator(aws_secret_access_key="test_secret")
+
         # Should store provided secret but leave access key as None
         assert generator.aws_access_key_id is None
         assert generator.aws_secret_access_key == "test_secret"
@@ -59,12 +54,10 @@ class TestBedrockMeetingMinutesGenerator:
     def test_init_with_custom_template_file(self) -> None:
         """Test initialization with custom template file."""
         from pathlib import Path
-        
+
         template_path = Path("/custom/template.txt")
-        generator = BedrockMeetingMinutesGenerator(
-            prompt_template_file=template_path
-        )
-        
+        generator = BedrockMeetingMinutesGenerator(prompt_template_file=template_path)
+
         assert generator.prompt_template_file == template_path
 
     @patch("vtt2minutes.bedrock.boto3")
