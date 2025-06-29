@@ -61,6 +61,9 @@ uv run python -m vtt2minutes meeting.vtt \
   --min-duration 1.0 \
   --merge-threshold 3.0 \
   --duplicate-threshold 0.9
+
+# Use custom filler words file
+uv run python -m vtt2minutes meeting.vtt --filter-words-file my_filter_words.txt
 ```
 
 ### File Information
@@ -114,6 +117,7 @@ I would like to discuss the new features today. First, let me share the current 
 - `--min-duration`: Minimum time to recognize as valid speech (seconds)
 - `--merge-threshold`: Time gap threshold for merging consecutive statements (seconds)
 - `--duplicate-threshold`: Similarity threshold for duplicate detection (0.0-1.0)
+- `--filter-words-file`: Path to custom filler words file
 - `--no-preprocessing`: Skip preprocessing entirely
 
 ### Output Settings
@@ -136,6 +140,44 @@ I would like to discuss the new features today. First, let me share the current 
 ### Transcription Artifacts
 - [音声が途切れました], [雑音], [不明瞭], [咳], [笑い]
 - [audio interrupted], [noise], [unclear], [cough], [laughter]
+
+## Custom Filler Words File
+
+You can create a custom filler words file to override the default filler words. The file format is simple:
+
+```txt
+# My custom filler words
+# Lines starting with # are comments and will be ignored
+# Empty lines are also ignored
+
+# Custom Japanese filler words
+えっと
+そのー
+まぁ
+
+# Custom English filler words
+basically
+obviously
+definitely
+
+# Custom transcription artifacts
+[microphone feedback]
+[phone ringing]
+```
+
+### Usage Example
+
+```bash
+# Create your custom filter words file
+echo "basically" > my_filters.txt
+echo "obviously" >> my_filters.txt
+echo "えっと" >> my_filters.txt
+
+# Use it with vtt2minutes
+uv run python -m vtt2minutes meeting.vtt --filter-words-file my_filters.txt
+```
+
+**Note**: When using a custom filter words file, it completely replaces the default filler words. If you want to keep some default words, include them in your custom file.
 
 ## Development
 

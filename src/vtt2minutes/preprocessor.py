@@ -2,6 +2,7 @@
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from .parser import VTTCue
@@ -13,6 +14,9 @@ class PreprocessingConfig:
 
     # Filler words to remove (common Japanese/English filler words)
     filler_words: set[str] | None = None
+
+    # Path to filler words file (overrides default filler_words if provided)
+    filler_words_file: Path | str | None = None
 
     # Minimum text length to keep (characters)
     min_text_length: int = 3
@@ -33,42 +37,86 @@ class PreprocessingConfig:
     fix_transcription_errors: bool = True
 
     def __post_init__(self) -> None:
-        """Initialize default filler words if not provided."""
-        if self.filler_words is None:
-            self.filler_words = {
-                # Japanese filler words
-                "えー",
-                "あー",
-                "うー",
-                "そのー",
-                "なんか",
-                "まあ",
-                "ちょっと",
-                "えっと",
-                "あのー",
-                "そうですね",
-                "はい",
-                "ええ",
-                "うん",
-                # English filler words
-                "um",
-                "uh",
-                "like",
-                "you know",
-                "well",
-                "okay",
-                "right",
-                "actually",
-                "basically",
-                "literally",
-                "honestly",
-                # Common transcription artifacts
-                "[音声が途切れました]",
-                "[雑音]",
-                "[不明瞭]",
-                "[咳]",
-                "[笑い]",
-            }
+        """Initialize filler words from file or defaults."""
+        # If a filler words file is specified, load from file
+        if self.filler_words_file is not None:
+            self.filler_words = self._load_filler_words_from_file(
+                self.filler_words_file
+            )
+        elif self.filler_words is None:
+            # Use default filler words if none provided
+            self.filler_words = self._get_default_filler_words()
+
+    def _load_filler_words_from_file(self, file_path: Path | str) -> set[str]:
+        """Load filler words from a text file.
+
+        Args:
+            file_path: Path to the filler words file
+
+        Returns:
+            Set of filler words loaded from the file
+
+        Raises:
+            FileNotFoundError: If the file doesn't exist
+            ValueError: If the file cannot be read
+        """
+        path = Path(file_path)
+
+        if not path.exists():
+            raise FileNotFoundError(f"Filler words file not found: {path}")
+
+        try:
+            filler_words: set[str] = set()
+            with path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    # Skip empty lines and comments
+                    if line and not line.startswith("#"):
+                        filler_words.add(line)
+            return filler_words
+        except Exception as e:
+            raise ValueError(f"Failed to read filler words file {path}: {e}") from e
+
+    def _get_default_filler_words(self) -> set[str]:
+        """Get the default set of filler words.
+
+        Returns:
+            Default set of filler words
+        """
+        return {
+            # Japanese filler words
+            "えー",
+            "あー",
+            "うー",
+            "そのー",
+            "なんか",
+            "まあ",
+            "ちょっと",
+            "えっと",
+            "あのー",
+            "そうですね",
+            "はい",
+            "ええ",
+            "うん",
+            # English filler words
+            "um",
+            "uh",
+            "like",
+            "you know",
+            "well",
+            "okay",
+            "right",
+            "actually",
+            "basically",
+            "literally",
+            "honestly",
+            # Common transcription artifacts
+            "[音声が途切れました]",
+            "[雑音]",
+            "[不明瞭]",
+            "[咳]",
+            "[笑い]",
+        }
 
 
 class TextPreprocessor:

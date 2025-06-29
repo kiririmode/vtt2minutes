@@ -1,0 +1,44 @@
+# VTT2Minutes Default Filler Words
+# This file contains commonly used filler words that will be removed during preprocessing.
+# Lines starting with # are comments and will be ignored.
+# Empty lines are also ignored.
+
+# Japanese filler words (日本語のフィラー語)
+えー
+あー
+うー
+そのー
+なんか
+まあ
+ちょっと
+えっと
+あのー
+そうですね
+はい
+ええ
+うん
+
+# English filler words
+um
+uh
+like
+you know
+well
+okay
+right
+actually
+basically
+literally
+honestly
+
+# Common transcription artifacts (転写時のノイズ)
+[音声が途切れました]
+[雑音]
+[不明瞭]
+[咳]
+[笑い]
+[inaudible]
+[unclear]
+[crosstalk]
+[background noise]
+[silence]

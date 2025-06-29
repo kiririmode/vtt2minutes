@@ -1,5 +1,8 @@
 """Tests for the text preprocessor module."""
 
+import tempfile
+from pathlib import Path
+
 import pytest
 
 from vtt2minutes.parser import VTTCue
@@ -351,3 +354,128 @@ class TestTextPreprocessor:
         assert len(result) == 1
         assert result[0].start_time == "00:00:01.000"
         assert result[0].end_time == "00:00:05.500"  # End time of last merged cue
+
+
+class TestFilterWordsFile:
+    """Test cases for filter words file functionality."""
+
+    def test_load_filler_words_from_file(self) -> None:
+        """Test loading filler words from a file."""
+        # Create a temporary filter words file
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.txt', delete=False, encoding='utf-8'
+        ) as f:
+            f.write("# Test filter words file\n")
+            f.write("えー\n")
+            f.write("um\n")
+            f.write("\n")  # Empty line
+            f.write("# Another comment\n")
+            f.write("test_word\n")
+            temp_path = Path(f.name)
+
+        try:
+            config = PreprocessingConfig(filler_words_file=temp_path)
+
+            expected_words = {"えー", "um", "test_word"}
+            assert config.filler_words == expected_words
+        finally:
+            temp_path.unlink()  # Clean up
+
+    def test_load_filler_words_file_not_found(self) -> None:
+        """Test error handling when filter words file doesn't exist."""
+        non_existent_path = Path("non_existent_filter_words.txt")
+
+        with pytest.raises(FileNotFoundError, match="Filler words file not found"):
+            PreprocessingConfig(filler_words_file=non_existent_path)
+
+    def test_load_filler_words_empty_file(self) -> None:
+        """Test loading from an empty filter words file."""
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.txt', delete=False, encoding='utf-8'
+        ) as f:
+            f.write("# Only comments\n")
+            f.write("\n")
+            f.write("# No actual words\n")
+            temp_path = Path(f.name)
+
+        try:
+            config = PreprocessingConfig(filler_words_file=temp_path)
+            assert config.filler_words == set()
+        finally:
+            temp_path.unlink()
+
+    def test_load_filler_words_with_unicode(self) -> None:
+        """Test loading Japanese and other unicode filler words."""
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.txt', delete=False, encoding='utf-8'
+        ) as f:
+            f.write("あのー\n")
+            f.write("そうですね\n")
+            f.write("café\n")  # With accent
+            f.write("naïve\n")  # With diaeresis
+            temp_path = Path(f.name)
+
+        try:
+            config = PreprocessingConfig(filler_words_file=temp_path)
+            expected_words = {"あのー", "そうですね", "café", "naïve"}
+            assert config.filler_words == expected_words
+        finally:
+            temp_path.unlink()
+
+    def test_filler_words_file_overrides_default(self) -> None:
+        """Test that filler words file overrides default words."""
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.txt', delete=False, encoding='utf-8'
+        ) as f:
+            f.write("custom_word1\n")
+            f.write("custom_word2\n")
+            temp_path = Path(f.name)
+
+        try:
+            config = PreprocessingConfig(filler_words_file=temp_path)
+
+            # Should only contain custom words, not defaults
+            assert config.filler_words == {"custom_word1", "custom_word2"}
+            assert "えー" not in config.filler_words  # Default Japanese word
+            assert "um" not in config.filler_words    # Default English word
+        finally:
+            temp_path.unlink()
+
+    def test_preprocessor_with_custom_filter_file(self) -> None:
+        """Test text preprocessor using custom filter words file."""
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.txt', delete=False, encoding='utf-8'
+        ) as f:
+            f.write("custom_filler\n")
+            f.write("test_word\n")
+            temp_path = Path(f.name)
+
+        try:
+            config = PreprocessingConfig(filler_words_file=temp_path)
+            preprocessor = TextPreprocessor(config)
+
+            cues = [
+                VTTCue(
+                    "00:00:01.000",
+                    "00:00:03.000",
+                    "田中",
+                    "custom_filler、これはテストです。",
+                ),
+                VTTCue(
+                    "00:00:03.000",
+                    "00:00:05.000",
+                    "佐藤",
+                    "test_word、重要な内容です。",
+                ),
+            ]
+
+            result = preprocessor.preprocess_cues(cues)
+
+            # Custom filler words should be removed
+            assert "custom_filler" not in result[0].text
+            assert "test_word" not in result[1].text
+            # Content should remain
+            assert "これはテストです" in result[0].text
+            assert "重要な内容です" in result[1].text
+        finally:
+            temp_path.unlink()

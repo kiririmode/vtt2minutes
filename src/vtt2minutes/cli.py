@@ -44,6 +44,11 @@ console = Console()
     default=0.8,
     help="Similarity threshold for duplicate detection (0.0-1.0, default: 0.8)",
 )
+@click.option(
+    "--filter-words-file",
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to custom filler words file",
+)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--stats", is_flag=True, help="Show preprocessing statistics")
 def main(
@@ -54,6 +59,7 @@ def main(
     min_duration: float,
     merge_threshold: float,
     duplicate_threshold: float,
+    filter_words_file: Path | None,
     verbose: bool,
     stats: bool,
 ) -> None:
@@ -95,6 +101,7 @@ def main(
             min_duration=min_duration,
             merge_gap_threshold=merge_threshold,
             duplicate_threshold=duplicate_threshold,
+            filler_words_file=filter_words_file,
         )
         preprocessor = TextPreprocessor(config)
 
