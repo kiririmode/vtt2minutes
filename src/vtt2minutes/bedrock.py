@@ -20,7 +20,8 @@ class BedrockMeetingMinutesGenerator:
         aws_secret_access_key: str | None = None,
         aws_session_token: str | None = None,
         region_name: str = "ap-northeast-1",
-        model_id: str = "anthropic.claude-sonnet-4-20250514-v1:0",
+        model_id: str | None = None,
+        inference_profile_id: str | None = None,
         validate_access: bool = False,
         prompt_template_file: str | Path | None = None,
     ) -> None:
@@ -35,10 +36,24 @@ class BedrockMeetingMinutesGenerator:
                 credentials chain if not provided)
             region_name: AWS region name
             model_id: Bedrock model ID to use
+                (mutually exclusive with inference_profile_id)
+            inference_profile_id: Bedrock inference profile ID to use
+                (mutually exclusive with model_id)
             validate_access: Whether to validate access during initialization
             prompt_template_file: Path to custom prompt template file
         """
+        # Validate that exactly one of model_id or inference_profile_id is provided
+        if model_id is not None and inference_profile_id is not None:
+            raise ValueError(
+                "Cannot specify both model_id and inference_profile_id. "
+                "Please specify only one."
+            )
+        if model_id is None and inference_profile_id is None:
+            # Default to Claude Sonnet 4 if neither is specified
+            model_id = "anthropic.claude-sonnet-4-20250514-v1:0"
+
         self.model_id = model_id
+        self.inference_profile_id = inference_profile_id
         self.region_name = region_name
         self.prompt_template_file = (
             Path(prompt_template_file) if prompt_template_file else None
@@ -65,15 +80,13 @@ class BedrockMeetingMinutesGenerator:
                 if self.aws_session_token:
                     client_kwargs["aws_session_token"] = self.aws_session_token
 
-            self.bedrock_client = boto3.client(
-                "bedrock-runtime", **client_kwargs)  # type: ignore[assignment]
+            self.bedrock_client = boto3.client("bedrock-runtime", **client_kwargs)  # type: ignore[assignment]
 
             # Validate credentials and region by attempting to list models
             if validate_access:
                 self._validate_bedrock_access()
         except Exception as e:
-            raise ValueError(
-                f"Failed to initialize Bedrock client: {e}") from e
+            raise ValueError(f"Failed to initialize Bedrock client: {e}") from e
 
     def generate_minutes_from_markdown(
         self,
@@ -128,12 +141,10 @@ class BedrockMeetingMinutesGenerator:
                     client_kwargs["aws_session_token"] = self.aws_session_token
 
             # Try to get foundation models to validate access
-            bedrock_client = boto3.client(
-                "bedrock", **client_kwargs)  # type: ignore[assignment]
+            bedrock_client = boto3.client("bedrock", **client_kwargs)  # type: ignore[assignment]
             bedrock_client.list_foundation_models()  # type: ignore[misc]
         except ClientError as e:
-            error_code = e.response.get("Error", {}).get(
-                "Code", "Unknown")  # type: ignore[misc]
+            error_code = e.response.get("Error", {}).get("Code", "Unknown")  # type: ignore[misc]
             if error_code == "UnauthorizedOperation":
                 raise BedrockError(
                     "AWS credentials are invalid or lack Bedrock permissions. "
@@ -163,8 +174,7 @@ class BedrockMeetingMinutesGenerator:
         # If custom template file is provided, use it
         if self.prompt_template_file and self.prompt_template_file.exists():
             try:
-                template_content = self.prompt_template_file.read_text(
-                    encoding="utf-8")
+                template_content = self.prompt_template_file.read_text(encoding="utf-8")
                 return self._substitute_placeholders(
                     template_content, markdown_content, title, language
                 )
@@ -273,7 +283,8 @@ class BedrockMeetingMinutesGenerator:
             ClientError: If the API call fails
         """
         # Prepare the request body based on the model
-        if "claude" in self.model_id.lower():
+        model_identifier = self.model_id or self.inference_profile_id
+        if model_identifier and "claude" in model_identifier.lower():
             body = json.dumps(
                 {
                     "anthropic_version": "bedrock-2023-05-31",
@@ -297,12 +308,19 @@ class BedrockMeetingMinutesGenerator:
                 }
             )
 
-        response = self.bedrock_client.invoke_model(  # type: ignore[misc]
-            modelId=self.model_id,
-            contentType="application/json",
-            accept="application/json",
-            body=body,
-        )
+        # Use the appropriate identifier for the invoke_model call
+        invoke_params = {
+            "contentType": "application/json",
+            "accept": "application/json",
+            "body": body,
+        }
+
+        if self.model_id:
+            invoke_params["modelId"] = self.model_id
+        elif self.inference_profile_id:
+            invoke_params["modelId"] = self.inference_profile_id
+
+        response = self.bedrock_client.invoke_model(**invoke_params)  # type: ignore[misc]
 
         return response  # type: ignore[return-value]
 
@@ -322,7 +340,8 @@ class BedrockMeetingMinutesGenerator:
             response_body = json.loads(response["body"].read())
 
             # Handle Claude models
-            if "claude" in self.model_id.lower():
+            model_identifier = self.model_id or self.inference_profile_id
+            if model_identifier and "claude" in model_identifier.lower():
                 if response_body.get("content"):
                     return response_body["content"][0]["text"]
                 else:
@@ -363,8 +382,7 @@ class BedrockMeetingMinutesGenerator:
                 if self.aws_session_token:
                     client_kwargs["aws_session_token"] = self.aws_session_token
 
-            bedrock_client = boto3.client(
-                "bedrock", **client_kwargs)  # type: ignore[assignment]
+            bedrock_client = boto3.client("bedrock", **client_kwargs)  # type: ignore[assignment]
 
             # type: ignore[misc]
             response = bedrock_client.list_foundation_models()
