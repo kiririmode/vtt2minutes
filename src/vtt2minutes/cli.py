@@ -68,6 +68,11 @@ console = Console()
     type=click.Path(path_type=Path),
     help="Path to save intermediate preprocessed file",
 )
+@click.option(
+    "--prompt-template",
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to custom prompt template file",
+)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--stats", is_flag=True, help="Show preprocessing statistics")
 def main(
@@ -82,6 +87,7 @@ def main(
     bedrock_model: str,
     bedrock_region: str,
     intermediate_file: Path | None,
+    prompt_template: Path | None,
     verbose: bool,
     stats: bool,
 ) -> None:
@@ -221,6 +227,7 @@ def main(
                 bedrock_generator = BedrockMeetingMinutesGenerator(
                     region_name=bedrock_region,
                     model_id=bedrock_model,
+                    prompt_template_file=prompt_template,
                 )
 
                 # Read intermediate file content

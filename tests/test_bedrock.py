@@ -27,39 +27,45 @@ class TestBedrockMeetingMinutesGenerator:
         assert generator.region_name == "us-west-2"
         assert generator.model_id == "anthropic.claude-3-sonnet-20240229-v1:0"
 
-    @patch.dict(
-        os.environ,
-        {
-            "AWS_ACCESS_KEY_ID": "env_key",
-            "AWS_SECRET_ACCESS_KEY": "env_secret",
-            "AWS_SESSION_TOKEN": "env_token",
-        },
-    )
-    def test_init_with_environment_variables(self) -> None:
-        """Test initialization using environment variables."""
+    def test_init_with_default_credentials(self) -> None:
+        """Test initialization using default credential chain."""
         generator = BedrockMeetingMinutesGenerator()
 
-        assert generator.aws_access_key_id == "env_key"
-        assert generator.aws_secret_access_key == "env_secret"
-        assert generator.aws_session_token == "env_token"
+        # When no explicit credentials are provided, should use None for AWS default credential chain
+        assert generator.aws_access_key_id is None
+        assert generator.aws_secret_access_key is None
+        assert generator.aws_session_token is None
 
-    def test_init_missing_credentials(self) -> None:
-        """Test initialization with missing credentials."""
-        with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="Missing environment variables"):
-                BedrockMeetingMinutesGenerator()
+    def test_init_with_partial_credentials_access_key_only(self) -> None:
+        """Test initialization with only access key provided."""
+        generator = BedrockMeetingMinutesGenerator(
+            aws_access_key_id="test_key"
+        )
+        
+        # Should store provided access key but leave secret as None
+        assert generator.aws_access_key_id == "test_key"
+        assert generator.aws_secret_access_key is None
 
-    def test_init_missing_access_key(self) -> None:
-        """Test initialization with missing access key."""
-        with patch.dict(os.environ, {"AWS_SECRET_ACCESS_KEY": "secret"}, clear=True):
-            with pytest.raises(ValueError, match="AWS_ACCESS_KEY_ID"):
-                BedrockMeetingMinutesGenerator()
+    def test_init_with_partial_credentials_secret_only(self) -> None:
+        """Test initialization with only secret key provided."""
+        generator = BedrockMeetingMinutesGenerator(
+            aws_secret_access_key="test_secret"
+        )
+        
+        # Should store provided secret but leave access key as None
+        assert generator.aws_access_key_id is None
+        assert generator.aws_secret_access_key == "test_secret"
 
-    def test_init_missing_secret_key(self) -> None:
-        """Test initialization with missing secret key."""
-        with patch.dict(os.environ, {"AWS_ACCESS_KEY_ID": "key"}, clear=True):
-            with pytest.raises(ValueError, match="AWS_SECRET_ACCESS_KEY"):
-                BedrockMeetingMinutesGenerator()
+    def test_init_with_custom_template_file(self) -> None:
+        """Test initialization with custom template file."""
+        from pathlib import Path
+        
+        template_path = Path("/custom/template.txt")
+        generator = BedrockMeetingMinutesGenerator(
+            prompt_template_file=template_path
+        )
+        
+        assert generator.prompt_template_file == template_path
 
     @patch("vtt2minutes.bedrock.boto3")
     def test_validate_bedrock_access_success(self, mock_boto3: Mock) -> None:

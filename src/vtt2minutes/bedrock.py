@@ -1,7 +1,7 @@
 """Amazon Bedrock integration for AI-powered meeting minutes generation."""
 
 import json
-import os
+from pathlib import Path
 from typing import Any
 
 import boto3  # type: ignore[import-untyped]
@@ -19,22 +19,30 @@ class BedrockMeetingMinutesGenerator:
         aws_access_key_id: str | None = None,
         aws_secret_access_key: str | None = None,
         aws_session_token: str | None = None,
-        region_name: str = "us-east-1",
-        model_id: str = "anthropic.claude-3-haiku-20240307-v1:0",
+        region_name: str = "ap-northeast-1",
+        model_id: str = "anthropic.claude-sonnet-4-20250514-v1:0",
         validate_access: bool = False,
+        prompt_template_file: str | Path | None = None,
     ) -> None:
         """Initialize the Bedrock client.
 
         Args:
-            aws_access_key_id: AWS access key ID (optional, uses default credentials chain if not provided)
-            aws_secret_access_key: AWS secret access key (optional, uses default credentials chain if not provided)
-            aws_session_token: AWS session token (optional, uses default credentials chain if not provided)
+            aws_access_key_id: AWS access key ID (optional, uses default
+                credentials chain if not provided)
+            aws_secret_access_key: AWS secret access key (optional, uses default
+                credentials chain if not provided)
+            aws_session_token: AWS session token (optional, uses default
+                credentials chain if not provided)
             region_name: AWS region name
             model_id: Bedrock model ID to use
             validate_access: Whether to validate access during initialization
+            prompt_template_file: Path to custom prompt template file
         """
         self.model_id = model_id
         self.region_name = region_name
+        self.prompt_template_file = (
+            Path(prompt_template_file) if prompt_template_file else None
+        )
 
         # Store provided credentials (may be None to use default credential chain)
         self.aws_access_key_id = aws_access_key_id
@@ -45,23 +53,27 @@ class BedrockMeetingMinutesGenerator:
         try:
             # Create client configuration
             client_kwargs = {"region_name": self.region_name}
-            
+
             # Only add credentials if they are explicitly provided
             if self.aws_access_key_id and self.aws_secret_access_key:
-                client_kwargs.update({
-                    "aws_access_key_id": self.aws_access_key_id,
-                    "aws_secret_access_key": self.aws_secret_access_key,
-                })
+                client_kwargs.update(
+                    {
+                        "aws_access_key_id": self.aws_access_key_id,
+                        "aws_secret_access_key": self.aws_secret_access_key,
+                    }
+                )
                 if self.aws_session_token:
                     client_kwargs["aws_session_token"] = self.aws_session_token
-            
-            self.bedrock_client = boto3.client("bedrock-runtime", **client_kwargs)  # type: ignore[assignment]
-            
+
+            self.bedrock_client = boto3.client(
+                "bedrock-runtime", **client_kwargs)  # type: ignore[assignment]
+
             # Validate credentials and region by attempting to list models
             if validate_access:
                 self._validate_bedrock_access()
         except Exception as e:
-            raise ValueError(f"Failed to initialize Bedrock client: {e}") from e
+            raise ValueError(
+                f"Failed to initialize Bedrock client: {e}") from e
 
     def generate_minutes_from_markdown(
         self,
@@ -103,21 +115,25 @@ class BedrockMeetingMinutesGenerator:
         try:
             # Create client configuration for bedrock service
             client_kwargs = {"region_name": self.region_name}
-            
+
             # Only add credentials if they are explicitly provided
             if self.aws_access_key_id and self.aws_secret_access_key:
-                client_kwargs.update({
-                    "aws_access_key_id": self.aws_access_key_id,
-                    "aws_secret_access_key": self.aws_secret_access_key,
-                })
+                client_kwargs.update(
+                    {
+                        "aws_access_key_id": self.aws_access_key_id,
+                        "aws_secret_access_key": self.aws_secret_access_key,
+                    }
+                )
                 if self.aws_session_token:
                     client_kwargs["aws_session_token"] = self.aws_session_token
-            
+
             # Try to get foundation models to validate access
-            bedrock_client = boto3.client("bedrock", **client_kwargs)  # type: ignore[assignment]
+            bedrock_client = boto3.client(
+                "bedrock", **client_kwargs)  # type: ignore[assignment]
             bedrock_client.list_foundation_models()  # type: ignore[misc]
         except ClientError as e:
-            error_code = e.response.get("Error", {}).get("Code", "Unknown")  # type: ignore[misc]
+            error_code = e.response.get("Error", {}).get(
+                "Code", "Unknown")  # type: ignore[misc]
             if error_code == "UnauthorizedOperation":
                 raise BedrockError(
                     "AWS credentials are invalid or lack Bedrock permissions. "
@@ -143,6 +159,62 @@ class BedrockMeetingMinutesGenerator:
 
         Returns:
             Formatted prompt string
+        """
+        # If custom template file is provided, use it
+        if self.prompt_template_file and self.prompt_template_file.exists():
+            try:
+                template_content = self.prompt_template_file.read_text(
+                    encoding="utf-8")
+                return self._substitute_placeholders(
+                    template_content, markdown_content, title, language
+                )
+            except Exception as e:
+                raise BedrockError(
+                    f"Failed to read prompt template file "
+                    f"{self.prompt_template_file}: {e}"
+                ) from e
+
+        # Fallback to default prompts
+        return self._get_default_prompt(markdown_content, title, language)
+
+    def _substitute_placeholders(
+        self, template: str, markdown_content: str, title: str, language: str
+    ) -> str:
+        """Substitute placeholders in the template with actual values.
+
+        Args:
+            template: Template string with placeholders
+            markdown_content: Preprocessed transcript content
+            title: Meeting title
+            language: Target language
+
+        Returns:
+            Template with placeholders substituted
+        """
+        placeholders = {
+            "markdown_content": markdown_content,
+            "title": title,
+            "language": language,
+        }
+
+        result = template
+        for placeholder, value in placeholders.items():
+            result = result.replace(f"{{{placeholder}}}", str(value))
+
+        return result
+
+    def _get_default_prompt(
+        self, markdown_content: str, title: str, language: str
+    ) -> str:
+        """Get the default prompt template.
+
+        Args:
+            markdown_content: Preprocessed transcript content
+            title: Meeting title
+            language: Target language
+
+        Returns:
+            Default prompt string
         """
         if language.lower() == "japanese":
             return (
@@ -279,23 +351,29 @@ class BedrockMeetingMinutesGenerator:
         try:
             # Create client configuration for bedrock service
             client_kwargs = {"region_name": self.region_name}
-            
+
             # Only add credentials if they are explicitly provided
             if self.aws_access_key_id and self.aws_secret_access_key:
-                client_kwargs.update({
-                    "aws_access_key_id": self.aws_access_key_id,
-                    "aws_secret_access_key": self.aws_secret_access_key,
-                })
+                client_kwargs.update(
+                    {
+                        "aws_access_key_id": self.aws_access_key_id,
+                        "aws_secret_access_key": self.aws_secret_access_key,
+                    }
+                )
                 if self.aws_session_token:
                     client_kwargs["aws_session_token"] = self.aws_session_token
-            
-            bedrock_client = boto3.client("bedrock", **client_kwargs)  # type: ignore[assignment]
 
-            response = bedrock_client.list_foundation_models()  # type: ignore[misc]
+            bedrock_client = boto3.client(
+                "bedrock", **client_kwargs)  # type: ignore[assignment]
+
+            # type: ignore[misc]
+            response = bedrock_client.list_foundation_models()
             return [
                 model["modelId"]  # type: ignore[misc]
-                for model in response.get("modelSummaries", [])  # type: ignore[misc]
-                if model.get("responseStreamingSupported", False)  # type: ignore[misc]
+                # type: ignore[misc]
+                for model in response.get("modelSummaries", [])
+                # type: ignore[misc]
+                if model.get("responseStreamingSupported", False)
             ]
 
         except (ClientError, BotoCoreError) as e:
