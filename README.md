@@ -1,568 +1,418 @@
 # VTT2Minutes
 
-A Python tool that automatically generates AI-powered meeting minutes from Microsoft Teams transcript files (VTT) using Amazon Bedrock.
+Microsoft Teams の VTT 形式議事録ファイルから、Amazon Bedrock を活用して AI による議事録を自動生成する Python ツールです。
 
-## Features
+## 特徴
 
-- **VTT File Parsing**: Analyze Microsoft Teams WebVTT format transcripts
-- **Advanced Preprocessing**: Improve transcription quality through filler word removal, word replacement, noise reduction, and duplicate elimination
-- **Japanese Language Support**: Handle Japanese filler words and punctuation
-- **AI-Powered Meeting Minutes**: Generate intelligent, context-aware meeting minutes using Amazon Bedrock
-- **Speaker Identification**: Identify and properly categorize each speaker's contributions
-- **Intermediate File Output**: Export preprocessed transcripts in structured Markdown format
+- **VTT ファイル解析**: Microsoft Teams の WebVTT 形式トランスクリプトを分析
+- **高度な前処理**: フィラーワード除去、単語置換、ノイズ軽減、重複除去による文字起こし品質の向上
+- **日本語特化**: 日本語のフィラーワードと句読点処理に最適化
+- **AI 議事録生成**: Amazon Bedrock を使用した知的でコンテキストを理解した議事録生成
+- **発言者識別**: 各発言者の貢献を適切に識別・分類
+- **中間ファイル出力**: 前処理済みトランスクリプトを構造化された Markdown 形式で出力
 
-## Installation
+## インストール
 
-### Option 1: Standalone Binaries (Recommended)
+### オプション 1: スタンドアロンバイナリ（推奨）
 
-Download pre-built binaries from the [Releases page](https://github.com/vtt2minutes/vtt2minutes/releases):
+[リリースページ](https://github.com/kiririmode/vtt2minutes/releases) から事前ビルド済みバイナリをダウンロード：
 
 **Linux (x86_64):**
 ```bash
-# Download and extract
-wget https://github.com/vtt2minutes/vtt2minutes/releases/latest/download/vtt2minutes-linux-x86_64.tar.gz
+# ダウンロードと展開
+wget https://github.com/kiririmode/vtt2minutes/releases/latest/download/vtt2minutes-linux-x86_64.tar.gz
 tar -xzf vtt2minutes-linux-x86_64.tar.gz
 
-# Run directly
+# 直接実行
 ./vtt2minutes --help
 ```
 
 **Windows (x86_64):**
-1. Download `vtt2minutes-windows-x86_64.zip` from releases
-2. Extract the zip file
-3. Run `vtt2minutes.exe --help` in Command Prompt or PowerShell
+1. リリースから `vtt2minutes-windows-x86_64.zip` をダウンロード
+2. zip ファイルを展開
+3. コマンドプロンプトまたは PowerShell で `vtt2minutes.exe --help` を実行
 
-### Option 2: Python Installation
+### オプション 2: Python インストール
 
-**Requirements:**
-- Python 3.12 or higher
-- uv (recommended package manager)
-- AWS Account with Amazon Bedrock access
-- AWS credentials configured
+**要件:**
+- Python 3.12 以上
+- uv（推奨パッケージマネージャー）
+- Amazon Bedrock アクセス権限を持つ AWS アカウント
+- 設定済み AWS 認証情報
 
-**Setup:**
+**セットアップ:**
 ```bash
-# Clone the repository
-git clone <repository-url>
+# リポジトリのクローン
+git clone https://github.com/kiririmode/vtt2minutes.git
 cd vtt2minutes
 
-# Install dependencies
+# 依存関係のインストール
 uv sync
 
-# Install development dependencies (for developers)
-uv sync --extra dev
-
-# Configure AWS credentials (required)
-# Copy the sample environment file and edit it with your credentials
-cp .env.sample .env
-# Or use: export AWS_ACCESS_KEY_ID=your-access-key
-# Or use: aws configure
+# 実行
+uv run vtt2minutes --help
 ```
 
-## Usage
+## AWS 設定
 
-### Basic Usage
+### 必要な権限
+
+AWS IAM ユーザーまたはロールに以下の権限が必要です：
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "bedrock:InvokeModel",
+                "bedrock:ListFoundationModels"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+### 認証情報の設定
+
+#### オプション 1: 環境変数
 
 ```bash
-# Generate AI-powered meeting minutes from VTT file
-uv run python -m vtt2minutes meeting.vtt
-
-# Specify output file name
-uv run python -m vtt2minutes meeting.vtt -o minutes.md
-
-# Specify meeting title
-uv run python -m vtt2minutes meeting.vtt -t "Project Planning Meeting"
-```
-
-### Advanced Options
-
-```bash
-# Show detailed output and statistics
-uv run python -m vtt2minutes meeting.vtt --verbose --stats
-
-# Skip preprocessing
-uv run python -m vtt2minutes meeting.vtt --no-preprocessing
-
-# Customize preprocessing settings
-uv run python -m vtt2minutes meeting.vtt \
-  --min-duration 1.0 \
-  --merge-threshold 3.0 \
-  --duplicate-threshold 0.9
-
-# Use custom filler words file
-uv run python -m vtt2minutes meeting.vtt --filter-words-file my_filter_words.txt
-
-# Use custom word replacement rules
-uv run python -m vtt2minutes meeting.vtt --replacement-rules-file replacement_rules.txt
-
-# Specify Bedrock model and region
-uv run python -m vtt2minutes meeting.vtt \
-  --bedrock-model anthropic.claude-3-sonnet-20240229-v1:0 \
-  --bedrock-region us-west-2
-
-# Save intermediate preprocessed file
-uv run python -m vtt2minutes meeting.vtt --intermediate-file preprocessed.md
-```
-
-### File Information
-
-```bash
-# Display VTT file information without processing
-uv run python -m vtt2minutes info meeting.vtt
-```
-
-## Output Example
-
-Example of generated meeting minutes:
-
-```markdown
-# Project Planning Meeting
-
-**Date:** June 29, 2025
-**Duration:** 00:15:23
-**Participants:** Tanaka, Sato, Yamada
-
-## Summary
-This meeting included 3 participants with a total of 156 recorded words. The main discussion focused on new feature specification review and schedule coordination.
-
-## Key Points
-- Discussed UI design for new features
-- Need to complete specifications by next week
-- Test environment preparation required
-
-## Decisions
-1. Decided to set new feature release date for end of next month
-   - Decided at: 00:08:15
-
-## Action Items
-1. Complete specification document creation
-   - Assignee: Tanaka
-   - Due date: Next week
-   - Mentioned at: 00:05:30
-
-## Detailed Minutes
-### Tanaka's Comments
-**Time:** 00:01:00 - 00:02:30
-**Speaker:** Tanaka
-
-I would like to discuss the new features today. First, let me share the current progress...
-```
-
-## Configuration Options
-
-### Preprocessing Settings
-
-- `--min-duration`: Minimum time to recognize as valid speech (seconds)
-- `--merge-threshold`: Time gap threshold for merging consecutive statements (seconds)
-- `--duplicate-threshold`: Similarity threshold for duplicate detection (0.0-1.0)
-- `--filter-words-file`: Path to custom filler words file
-- `--no-preprocessing`: Skip preprocessing entirely
-
-### Output Settings
-
-- `--output, -o`: Output file path
-- `--title, -t`: Meeting title
-- `--verbose, -v`: Show detailed processing status
-- `--stats`: Display preprocessing statistics
-
-## Supported Filler Words
-
-### Japanese
-- えー, あー, うー, そのー, なんか, まあ, ちょっと
-- えっと, あのー, そうですね, はい, ええ, うん
-
-### Transcription Artifacts
-- [音声が途切れました], [雑音], [不明瞭], [咳], [笑い]
-
-## Custom Filler Words File
-
-You can create a custom filler words file to override the default filler words. The file format is simple:
-
-```txt
-# My custom filler words
-# Lines starting with # are comments and will be ignored
-# Empty lines are also ignored
-
-# Custom Japanese filler words
-えっと
-そのー
-まぁ
-
-# Additional custom filler words
-まじで
-やっぱり
-
-# Custom transcription artifacts
-[microphone feedback]
-[phone ringing]
-```
-
-### Usage Example
-
-```bash
-# Create your custom filter words file
-echo "basically" > my_filters.txt
-echo "obviously" >> my_filters.txt
-echo "えっと" >> my_filters.txt
-
-# Use it with vtt2minutes
-uv run python -m vtt2minutes meeting.vtt --filter-words-file my_filters.txt
-```
-
-**Note**: When using a custom filter words file, it completely replaces the default filler words. If you want to keep some default words, include them in your custom file.
-
-## Amazon Bedrock Integration
-
-VTT2Minutes supports AI-powered meeting minutes generation using Amazon Bedrock, providing more sophisticated and context-aware output compared to traditional keyword-based summarization.
-
-### Prerequisites
-
-1. **AWS Account**: You need an active AWS account with Bedrock access
-2. **Bedrock Model Access**: Request access to Claude models in your AWS region
-3. **AWS Credentials**: Configure your AWS credentials using environment variables
-
-### AWS Credentials Setup
-
-#### Option 1: Using Environment Variables (.env file) - Recommended
-
-```bash
-# Copy the sample environment file
-cp .env.sample .env
-
-# Edit .env file with your actual AWS credentials
-# The file contains detailed comments explaining each variable
-AWS_ACCESS_KEY_ID=your-access-key-id
-AWS_SECRET_ACCESS_KEY=your-secret-access-key
-AWS_SESSION_TOKEN=your-session-token  # Optional, for temporary credentials
-```
-
-#### Option 2: Export Environment Variables
-
-```bash
-# Set environment variables
 export AWS_ACCESS_KEY_ID=your-access-key-id
 export AWS_SECRET_ACCESS_KEY=your-secret-access-key
-export AWS_SESSION_TOKEN=your-session-token  # Optional, for temporary credentials
+export AWS_DEFAULT_REGION=ap-northeast-1
+export AWS_SESSION_TOKEN=your-session-token  # 一時的な認証情報を使用する場合のみ
 ```
 
-#### Option 3: Using AWS CLI Profile
+#### オプション 2: AWS CLI プロファイル
 
 ```bash
-# Or using AWS CLI profile
 aws configure set aws_access_key_id your-access-key-id
 aws configure set aws_secret_access_key your-secret-access-key
 aws configure set region ap-northeast-1
 ```
 
-**Note**: The `.env.sample` file contains comprehensive documentation about all configuration options, security best practices, and alternative authentication methods.
+## 使用方法
 
-## Configuration Files
+### 基本的な使用方法
 
-### Replacement Rules (`replacement_rules.txt`)
+```bash
+# VTT ファイルから議事録を生成
+vtt2minutes meeting.vtt
 
-Customize word replacement during preprocessing to standardize technical terms and abbreviations:
+# カスタムタイトルと出力ファイルを指定
+vtt2minutes meeting.vtt -o minutes.md -t "プロジェクト企画会議"
+
+# 特定の Bedrock モデルを使用（Claude Sonnet 4）
+vtt2minutes meeting.vtt --bedrock-model anthropic.claude-sonnet-4-20250514
+
+# または推論プロファイルを使用
+vtt2minutes meeting.vtt --bedrock-inference-profile-id apac-claude-sonnet-4
+
+# 詳細出力と統計情報を表示
+vtt2minutes meeting.vtt --verbose --stats
+```
+
+### 高度なオプション
+
+```bash
+# 前処理をスキップ
+vtt2minutes meeting.vtt --no-preprocessing
+
+# カスタムフィラーワードファイルを使用
+vtt2minutes meeting.vtt --filter-words-file custom_filler_words.txt
+
+# カスタム単語置換ルールを使用
+vtt2minutes meeting.vtt --replacement-rules-file custom_rules.txt
+
+# 中間ファイルを保存
+vtt2minutes meeting.vtt --intermediate-file processed_transcript.md
+
+# カスタムプロンプトテンプレートを使用
+vtt2minutes meeting.vtt --prompt-template custom_template.txt
+```
+
+## 設定ファイル
+
+### 単語置換ルール (`replacement_rules.txt`)
+
+技術用語や略語を標準化するための単語置換をカスタマイズ：
 
 ```text
-# Technology terms (技術用語の統一)
+# 技術用語の統一
 ベッドロック -> Bedrock
 ラムダ -> Lambda
 エス3 -> S3
 イーシー2 -> EC2
 
-# Company names (会社・製品名の統一)
+# 会社・製品名の統一
 アマゾン -> Amazon
 グーグル -> Google
+マイクロソフト -> Microsoft
 
-# Common abbreviations (一般的な略語)
-アイティー -> IT
-エーピーアイ -> API
-ディービー -> DB
+# 一般的な略語展開
+API -> アプリケーションプログラミングインターフェース
+UI -> ユーザーインターフェース
+DB -> データベース
 ```
 
-**Usage:**
-```bash
-uv run python -m vtt2minutes meeting.vtt --replacement-rules-file replacement_rules.txt
+### フィラーワード
+
+デフォルトで除去される日本語フィラーワード：
+
+#### 日本語
+- えー, あー, うー, そのー, なんか, まあ, ちょっと
+- えっと, あのー, そうですね, はい, ええ, うん
+
+#### 転写アーティファクト
+- [音声が途切れました], [雑音], [不明瞭], [咳], [笑い]
+
+## カスタムフィラーワードファイル
+
+デフォルトのフィラーワードを上書きするカスタムフィラーワードファイルを作成できます：
+
+```txt
+# カスタムフィラーワード
+# # で始まる行はコメントとして無視されます
+# 空行も無視されます
+
+# カスタム日本語フィラーワード
+えっと
+そのー
+まぁ
+
+# 追加のカスタムフィラーワード
+まじで
+やっぱり
+
+# カスタム転写アーティファクト
+[microphone feedback]
+[phone ringing]
 ```
 
-### Filter Words (`filter_words.txt`)
+## Bedrock モデル設定
 
-Customize filler words and transcription artifacts to remove during preprocessing. See the included `filter_words.txt` for examples of Japanese and English filler words.
+### サポートされているモデル
 
-**Usage:**
-```bash
-uv run python -m vtt2minutes meeting.vtt --filter-words-file my_custom_filter.txt
-```
-
-### Supported Models
-
-- **Claude 3 Haiku** (default): `anthropic.claude-3-haiku-20240307-v1:0`
+- **Claude Sonnet 4** (最新・最高品質): `anthropic.claude-sonnet-4-20250514`
+- **Claude 3.5 Sonnet** (推奨): `anthropic.claude-3-5-sonnet-20241022-v2:0`
+- **Claude 3 Haiku**: `anthropic.claude-3-haiku-20240307-v1:0`
 - **Claude 3 Sonnet**: `anthropic.claude-3-sonnet-20240229-v1:0`
-- **Claude 3 Opus**: `anthropic.claude-3-opus-20240229-v1:0`
 
-### Command Line Options
-
-**Preprocessing Options:**
-- `--replacement-rules-file`: Path to custom word replacement rules file
-- `--filter-words-file`: Path to custom filler words file
-- `--min-duration`: Minimum cue duration in seconds (default: 0.5)
-- `--merge-threshold`: Time gap threshold for merging cues (default: 2.0)
-- `--duplicate-threshold`: Similarity threshold for duplicate detection (default: 0.8)
-- `--no-preprocessing`: Skip text preprocessing step
-
-**Bedrock Options:**
-- `--bedrock-model`: Specify the Bedrock model ID to use (mutually exclusive with --bedrock-inference-profile-id)
-- `--bedrock-inference-profile-id`: Specify the Bedrock inference profile ID to use (mutually exclusive with --bedrock-model)
-- `--bedrock-region`: AWS region for Bedrock (default: ap-northeast-1)
-
-**Output Options:**
-- `--output`, `-o`: Output file path (default: input_file.md)
-- `--intermediate-file`: Path to save intermediate preprocessed file
-- `--title`, `-t`: Meeting title for the minutes
-- `--verbose`, `-v`: Enable verbose output
-- `--stats`: Show preprocessing statistics
-
-### Example Usage
+### 推奨設定
 
 ```bash
-# Basic usage (uses Claude 3 Haiku by default)
-uv run python -m vtt2minutes meeting.vtt
+# 最高品質な議事録生成（最新）
+vtt2minutes meeting.vtt --bedrock-model anthropic.claude-sonnet-4-20250514
 
-# With custom model and region
-uv run python -m vtt2minutes meeting.vtt \
-  --bedrock-model anthropic.claude-3-sonnet-20240229-v1:0 \
-  --bedrock-region us-west-2
+# 高品質な議事録生成（安定版推奨）
+vtt2minutes meeting.vtt --bedrock-model anthropic.claude-3-5-sonnet-20241022-v2:0
 
-# Using APAC inference profile ID (default region: ap-northeast-1)
-uv run python -m vtt2minutes meeting.vtt \
-  --bedrock-inference-profile-id apac.anthropic.claude-sonnet-4-20250514-v1:0
-
-# Save intermediate file for inspection
-uv run python -m vtt2minutes meeting.vtt \
-  --intermediate-file meeting_preprocessed.md \
-  --output ai_minutes.md
+# 高速で費用効率的な処理
+vtt2minutes meeting.vtt --bedrock-model anthropic.claude-3-haiku-20240307-v1:0
 ```
 
-### How It Works
+### Bedrock Cross-Region Inference（推論プロファイル）
 
-1. **VTT Parsing**: Parse Microsoft Teams VTT transcript files and extract speaker information
-2. **Preprocessing**: Clean and improve transcript quality through multiple steps:
-   - **Word Replacement**: Replace technical terms and abbreviations (e.g., "ベッドロック" → "Bedrock")
-   - **Filler Word Removal**: Remove common filler words and transcription artifacts
-   - **Noise Reduction**: Clean up transcription errors and normalize text
-   - **Duplicate Elimination**: Remove redundant or similar content
-   - **Speaker Consolidation**: Merge consecutive utterances from the same speaker
-3. **Intermediate File**: Preprocessed content is saved in structured Markdown format for inspection
-4. **AI Generation**: Bedrock model analyzes the intermediate file and generates comprehensive meeting minutes
-5. **Output**: AI-generated minutes are saved in final output file with structured sections
-
-### Benefits of AI-Powered Minutes
-
-- **Context Awareness**: Better understanding of meeting flow and relationships between topics
-- **Intelligent Summarization**: More accurate extraction of key points and decisions
-- **Natural Language**: Output reads more naturally compared to keyword-based extraction
-- **Adaptive Processing**: Handles various meeting styles and formats effectively
-
-### Costs and Considerations
-
-- **AWS Charges**: Using Bedrock incurs AWS charges based on model usage
-- **Processing Time**: AI generation takes longer than traditional processing
-- **Network Required**: Requires internet connection to AWS Bedrock service
-- **Token Limits**: Large meetings may need to be processed in chunks
-
-### Troubleshooting
-
-Common issues and solutions:
+APAC リージョンで利用可能な推論プロファイルを使用してコストと可用性を最適化：
 
 ```bash
-# Check AWS credentials
-aws sts get-caller-identity
+# Claude Sonnet 4 推論プロファイル（最新・最高品質）
+vtt2minutes meeting.vtt --bedrock-inference-profile-id apac-claude-sonnet-4
 
-# Verify Bedrock access in your region
-aws bedrock list-foundation-models --region us-east-1
+# Claude 3.5 Sonnet 推論プロファイル（推奨）
+vtt2minutes meeting.vtt --bedrock-inference-profile-id apac-claude-3-5-sonnet
 
-# Test with verbose output for debugging
-uv run python -m vtt2minutes meeting.vtt --verbose
+# Claude 3 Haiku 推論プロファイル（高速・費用効率）
+vtt2minutes meeting.vtt --bedrock-inference-profile-id apac-claude-3-haiku
+
+# 特定のリージョンを指定
+vtt2minutes meeting.vtt --bedrock-region ap-northeast-1 --bedrock-inference-profile-id apac-claude-3-5-sonnet
 ```
 
-**Error Messages:**
-- `Missing environment variables`: Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
-- `Bedrock is not available in region`: Use a supported region like us-east-1
-- `Invalid credentials`: Check your AWS access keys and permissions
+**推論プロファイルの利点:**
+- **コスト最適化**: リージョン間でのコスト効率的なルーティング
+- **可用性向上**: 複数リージョンでの冗長性確保
+- **レイテンシー改善**: 最適なリージョンへの自動ルーティング
 
-## Building Binaries
+**注意**: `--bedrock-model` と `--bedrock-inference-profile-id` は相互排他的です。どちらか一方のみを指定してください。
 
-### Build Locally
+## プロンプトテンプレート
+
+### デフォルトテンプレート
+
+デフォルトで `prompt_templates/default.txt` が使用され、以下の構造で議事録を生成：
+
+- 議題
+- 参加者
+- 議論のまとめ
+- 決定事項
+- 議事
+- 今後のアクション
+- 特記事項
+
+### カスタムテンプレート
+
+カスタムプロンプトテンプレートを作成してより詳細な制御が可能：
+
+```text
+以下の要件に従って議事録を作成してください。
+
+タイトル: {title}
+
+前処理済み会議記録:
+{markdown_content}
+
+要件:
+1. 重要な決定事項を明確に抽出する
+2. アクションアイテムと担当者を特定する
+3. 次回会議までのタスクを整理する
+```
+
+プレースホルダー:
+- `{title}`: 会議タイトル
+- `{markdown_content}`: 前処理済みトランスクリプト内容
+
+## 出力例
+
+生成される議事録のサンプル：
+
+```markdown
+# プロジェクト企画会議
+
+## 会議概要
+- 日時: 2024年1月15日
+- 参加者: 田中氏、佐藤氏、山田氏
+- 目的: 新プロジェクトの企画検討
+
+## 主要な議題
+1. プロジェクトスコープの定義
+2. リソース配分の検討
+3. スケジュール策定
+
+## 決定事項
+- プロジェクト開始日を2024年2月1日に決定
+- 初期予算として500万円を承認
+- チームリーダーに田中氏を任命
+
+## アクションアイテム
+- [ ] 詳細な要件定義書の作成（田中氏、1月31日まで）
+- [ ] 開発チームの採用活動開始（佐藤氏、1月25日まで）
+- [ ] プロジェクト管理ツールの選定（山田氏、1月20日まで）
+
+## 次回までの課題
+- 技術スタックの最終決定
+- 外部パートナーとの契約締結
+- プロジェクト管理体制の構築
+
+## 詳細な議論内容
+### プロジェクトスコープについて
+田中氏より、プロジェクトの目標と範囲について詳細な説明がありました。
+特に、ユーザビリティと拡張性を重視する方針が確認されました。
+
+### リソース配分について
+佐藤氏から人員配置の提案があり、全員で検討した結果、
+フロントエンド2名、バックエンド3名の体制で進めることになりました。
+```
+
+## 開発・貢献
+
+### 環境セットアップ
 
 ```bash
-# Install development dependencies
+# リポジトリのクローン
+git clone https://github.com/kiririmode/vtt2minutes.git
+cd vtt2minutes
+
+# 開発環境のセットアップ
+./scripts/setup-hooks.sh
 uv sync --extra dev
 
-# Build for current platform
-./scripts/build-binary.sh
+# コード品質チェック
+uv run ruff format .  # フォーマット
+uv run ruff check .   # リンティング
+uv run pyright        # 型チェック
 
-# Build for specific platform
-./scripts/build-binary.sh --platform linux
-./scripts/build-binary.sh --platform windows
+# テスト実行
+uv run pytest         # 全テスト実行
+uv run pytest -v      # 詳細出力
+uv run pytest --cov   # カバレッジ付き
 
-# Clean build
-./scripts/build-binary.sh --clean
-
-# Custom output directory
-./scripts/build-binary.sh --output-dir my-dist
-```
-
-### Build Requirements
-
-- **Linux**: Builds native Linux x86_64 binary
-- **Windows**: Requires Windows environment or cross-compilation setup
-- **Dependencies**: All Python dependencies are bundled into the binary
-- **Size**: Approximately 60-80MB per binary (includes Python runtime)
-
-### GitHub Actions
-
-Binaries are automatically built for Linux and Windows on:
-- Push to `main` branch
-- Pull requests
-- Version tags (creates GitHub release with binaries)
-
-## Development
-
-### GitHub Actions CI/CD
-
-This project uses GitHub Actions for continuous integration and deployment:
-
-**CI Pipeline (`ci.yml`):**
-- **Lint and Format Check**: Validates code formatting with `ruff format` and linting with `ruff check`
-- **Type Check**: Runs static type checking with `pyright`
-- **Test Suite**: Executes all tests with coverage reporting
-- **Integration Test**: Tests CLI functionality and word replacement features
-- **Security Check**: Audits dependencies for known vulnerabilities
-- **Build Check**: Validates package building and contents
-
-**Dependencies Check (`dependencies.yml`):**
-- **Weekly Schedule**: Automatically checks for dependency updates every Sunday
-- **Security Audit**: Scans for security vulnerabilities in dependencies
-- **License Check**: Validates license compatibility
-
-**Workflow Triggers:**
-- Push to `main` or `develop` branches
-- Pull requests to `main` or `develop`
-- Manual triggers for testing
-
-### Running Tests Locally
-
-```bash
-# Run all tests
-uv run pytest
-
-# Run tests with coverage
-uv run pytest --cov=src/vtt2minutes
-
-# Run specific test file only
+# 特定のテスト実行
 uv run pytest tests/test_parser.py
 ```
 
-### Code Quality Checks
+### プリコミットフック
 
-```bash
-# Code formatting
-uv run ruff format .
+品質チェックのためのプリコミットフックが自動的にインストールされ、コミット前に以下をチェック：
 
-# Run linting
-uv run ruff check .
+- フォーマット（ruff）
+- リンティング（ruff）
+- 型チェック（pyright）
+- テスト（pytest）
 
-# Type checking
-uv run pyright
-```
-
-### Pre-commit Hooks
-
-This project includes automatic quality checks that run before each commit:
-
-```bash
-# Install pre-commit hooks (run once after cloning)
-./scripts/setup-hooks.sh
-```
-
-**What gets checked automatically:**
-- Code formatting with `ruff format`
-- Linting with `ruff check`
-- Type checking with `pyright`
-- Test execution with `pytest`
-
-**Manual quality checks:**
-```bash
-# Run formatting and linting together
-uv run ruff format . && uv run ruff check . --fix
-
-# Run all checks manually (same as pre-commit hook)
-uv run ruff format --check . && uv run ruff check . && uv run pyright && PYTEST_DISABLE_PLUGIN_AUTOLOAD="" uv run pytest --tb=short --quiet
-```
-
-**Bypass hooks temporarily (not recommended):**
+一時的にバイパスするには（推奨しません）：
 ```bash
 git commit --no-verify
 ```
 
-## Architecture
+### ビルドとテスト
 
+```bash
+# バイナリビルド
+./scripts/build-binary.sh --platform linux
+./scripts/build-binary.sh --platform windows
+
+# テスト環境での実行
+PYTEST_DISABLE_PLUGIN_AUTOLOAD="" uv run pytest  # プラグインエラー回避
 ```
-src/vtt2minutes/
-├── __init__.py          # Package entry point
-├── parser.py            # VTT file parsing
-├── preprocessor.py      # Text preprocessing
-├── intermediate.py      # Intermediate file output
-├── bedrock.py           # Amazon Bedrock integration
-└── cli.py              # Command-line interface
+
+## トラブルシューティング
+
+### よくある問題
+
+**1. AWS 認証エラー**
 ```
+Error: Unable to locate credentials
+```
+→ AWS 認証情報が正しく設定されているか確認してください
 
-### Main Classes
+**2. Bedrock モデルアクセスエラー**
+```
+Error: Model access denied
+```
+→ AWS コンソールで Bedrock モデルへのアクセス許可を確認してください
 
-- **VTTParser**: WebVTT file parsing and VTTCue object generation
-- **TextPreprocessor**: Filler word removal, duplicate elimination, text cleaning
-- **IntermediateTranscriptWriter**: Preprocessed transcript output in Markdown format
-- **BedrockMeetingMinutesGenerator**: AI-powered meeting minutes using Amazon Bedrock
+**3. VTT ファイル解析エラー**
+```
+Error: Invalid VTT format
+```
+→ VTT ファイルが Microsoft Teams の正しい形式かどうか確認してください
 
-## Technical Specifications
+**4. プロンプトテンプレートエラー**
+```
+Error: Failed to read prompt template file
+```
+→ テンプレートファイルのパスと権限を確認してください
 
-- **Python**: 3.12 or higher
-- **Dependencies**: Click (CLI), Rich (UI), boto3 (AWS SDK), standard library otherwise
-- **Input Format**: WebVTT (.vtt)
-- **Output Format**: Markdown (.md)
-- **Intermediate Format**: Structured Markdown (.md)
-- **Character Encoding**: UTF-8
-- **Cloud Integration**: Amazon Bedrock (required)
+### パフォーマンスの最適化
 
-## License
+- **大きなファイル**: 長時間の会議録の場合は Claude 3 Haiku を使用して処理時間を短縮
+- **高品質出力**: 重要な会議では Claude 3.5 Sonnet を使用して最高品質の議事録を生成
+- **前処理**: 複雑な前処理が不要な場合は `--no-preprocessing` を使用
 
-MIT License
+## ライセンス
 
-## Contributing
+このプロジェクトは MIT ライセンスの下で公開されています。詳細は [LICENSE](LICENSE) ファイルを参照してください。
 
-Pull requests and issue reports are welcome. To contribute to development:
+## 貢献
 
-1. Fork this repository
-2. Create a feature branch
-3. Commit your changes
-4. Run tests to ensure everything passes
-5. Create a pull request
+プルリクエストやイシューは歓迎します。貢献ガイドラインについては、開発セクションを参照してください。
 
-For detailed development guidelines, see `CLAUDE.md`.
+## サポート
 
-## Use Cases
-
-- **Meeting Documentation**: Convert Teams meeting transcripts into professional minutes
-- **Content Analysis**: Extract key decisions and action items from long discussions
-- **Multilingual Support**: Handle Japanese and English meetings seamlessly
-- **Quality Improvement**: Clean up automatic transcription artifacts for better readability
-- **Time Saving**: Automate the manual process of creating structured meeting notes
-- **AI-Enhanced Processing**: Generate intelligent, context-aware meeting minutes using Amazon Bedrock
-- **Enterprise Integration**: Scale meeting documentation with cloud-based AI services
-
-## Limitations
-
-- Currently supports Microsoft Teams VTT format specifically
-- Requires AWS account and Bedrock access (incurs AWS charges)
-- Best results with clear audio and distinct speakers
-- Some context-dependent filler word detection may vary by meeting style
-- Internet connection required for AI processing
+- **バグレポート**: [GitHub Issues](https://github.com/kiririmode/vtt2minutes/issues)
+- **機能リクエスト**: [GitHub Issues](https://github.com/kiririmode/vtt2minutes/issues)
+- **ディスカッション**: [GitHub Discussions](https://github.com/kiririmode/vtt2minutes/discussions)
