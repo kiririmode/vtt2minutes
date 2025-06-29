@@ -631,7 +631,7 @@ class TestJapaneseTextProcessing:
             assert "なるほど" in result[1].text
             assert "来週までに" in result[1].text
             assert "対策できますか" in result[1].text
-            
+
             # Should not have unnatural artifacts
             assert not cue.text.startswith("、")
             assert "、、" not in cue.text
@@ -708,13 +708,23 @@ class TestJapaneseTextProcessing:
             assert "。。" not in cue.text
             # Should not have multiple consecutive spaces
             assert "  " not in cue.text
-            
+
         # Check that meaningful content is preserved in each cue
         text1 = result[0].text
-        assert any(word in text1 for word in ["最初に", "先週", "タスク", "進捗", "報告"])
-        
-        text2 = result[1].text  
-        assert any(word in text2 for word in ["ありがとうございます", "アクション", "アイテム", "整理しましょう"])
+        assert any(
+            word in text1 for word in ["最初に", "先週", "タスク", "進捗", "報告"]
+        )
+
+        text2 = result[1].text
+        assert any(
+            word in text2
+            for word in [
+                "ありがとうございます",
+                "アクション",
+                "アイテム",
+                "整理しましょう",
+            ]
+        )
 
     def test_original_vtt_sample_processing(self) -> None:
         """Test processing that matches the original sample.vtt file content."""
@@ -727,7 +737,8 @@ class TestJapaneseTextProcessing:
                 "00:00:00.000",
                 "00:00:05.000",
                 "田中 一郎",
-                "田中 一郎: えー、おはようございます、あのー、今日の会議を、えっと、始めたいと思います。",
+                "田中 一郎: えー、おはようございます、あのー、今日の会議を、"
+                "えっと、始めたいと思います。",
             ),
             VTTCue(
                 "00:00:05.500",
@@ -739,7 +750,8 @@ class TestJapaneseTextProcessing:
                 "00:00:10.800",
                 "00:00:14.000",
                 "鈴木 太郎",
-                "鈴木 太郎: あ、すみません、今、音声が、ちょっと、えっと、遅れてまして…。",
+                "鈴木 太郎: あ、すみません、今、音声が、ちょっと、"
+                "えっと、遅れてまして…。",
             ),
         ]
 

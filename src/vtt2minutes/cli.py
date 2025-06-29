@@ -14,7 +14,6 @@ from .bedrock import BedrockError, BedrockMeetingMinutesGenerator
 from .intermediate import IntermediateTranscriptWriter
 from .parser import VTTParser
 from .preprocessor import PreprocessingConfig, TextPreprocessor
-from .summarizer import MeetingSummarizer
 
 console = Console()
 
@@ -53,11 +52,6 @@ console = Console()
     help="Path to custom filler words file",
 )
 @click.option(
-    "--use-bedrock",
-    is_flag=True,
-    help="Use Amazon Bedrock for AI-powered meeting minutes generation",
-)
-@click.option(
     "--bedrock-model",
     type=str,
     default="anthropic.claude-3-haiku-20240307-v1:0",
@@ -85,17 +79,16 @@ def main(
     merge_threshold: float,
     duplicate_threshold: float,
     filter_words_file: Path | None,
-    use_bedrock: bool,
     bedrock_model: str,
     bedrock_region: str,
     intermediate_file: Path | None,
     verbose: bool,
     stats: bool,
 ) -> None:
-    """Convert Microsoft Teams VTT transcripts to structured meeting minutes.
+    """Convert Microsoft Teams VTT transcripts to AI-powered meeting minutes.
 
     This tool processes VTT (WebVTT) transcript files from Microsoft Teams
-    and generates well-structured meeting minutes in Markdown format.
+    and generates AI-powered meeting minutes using Amazon Bedrock.
 
     Example usage:
 
@@ -103,7 +96,7 @@ def main(
 
         vtt2minutes meeting.vtt -o minutes.md -t "Project Planning Meeting"
 
-        vtt2minutes meeting.vtt --no-preprocessing --verbose
+        vtt2minutes meeting.vtt --bedrock-model anthropic.claude-3-sonnet-20241022-v2:0
     """
     try:
         # Determine output file path
@@ -133,8 +126,6 @@ def main(
             filler_words_file=filter_words_file,
         )
         preprocessor = TextPreprocessor(config)
-
-        summarizer = MeetingSummarizer()
 
         # Process with progress indication
         with Progress(
@@ -184,96 +175,68 @@ def main(
                     console.print(f"[red]前処理に失敗しました: {e}[/red]")
                     sys.exit(1)
 
-            # Step 2.5: Save intermediate file (if requested)
-            if intermediate_file or use_bedrock:
-                task_intermediate = progress.add_task(
-                    "中間ファイルを保存中...", total=None
-                )
-                try:
-                    # Determine intermediate file path
-                    if intermediate_file:
-                        intermediate_path = intermediate_file
-                    else:
-                        # Auto-generate intermediate file path for Bedrock
-                        intermediate_path = output.with_suffix(".preprocessed.md")
-
-                    # Generate metadata for intermediate file
-                    intermediate_writer = IntermediateTranscriptWriter()
-                    transcript_stats = intermediate_writer.get_statistics(cues)
-
-                    metadata: dict[str, Any] = {
-                        "participants": transcript_stats["speakers"],
-                        "duration": intermediate_writer.format_duration(
-                            transcript_stats["duration"]
-                        ),
-                    }
-
-                    # Write intermediate file
-                    intermediate_writer.write_markdown(
-                        cues, intermediate_path, title or "前処理済み会議記録", metadata
-                    )
-
-                    progress.update(
-                        task_intermediate, description="✓ 中間ファイル保存完了"
-                    )
-
-                    if verbose:
-                        console.print(f"中間ファイル: {intermediate_path}")
-                        console.print(
-                            f"発言者数: {len(transcript_stats['speakers'])}名"
-                        )
-                        console.print(f"総単語数: {transcript_stats['word_count']}語")
-                        console.print()
-
-                except Exception as e:
-                    progress.stop()
-                    console.print(f"[red]中間ファイルの保存に失敗しました: {e}[/red]")
-                    sys.exit(1)
-
-            # Step 3: Generate summary (using Bedrock or traditional method)
-            task3 = progress.add_task("議事録を生成中...", total=None)
-            summary = None  # Initialize for type checking
+            # Step 2.5: Save intermediate file (always needed for Bedrock)
+            task_intermediate = progress.add_task("中間ファイルを保存中...", total=None)
             try:
-                if use_bedrock:
-                    # Use Amazon Bedrock for AI-powered meeting minutes generation
-                    bedrock_generator = BedrockMeetingMinutesGenerator(
-                        region_name=bedrock_region,
-                        model_id=bedrock_model,
-                    )
-
-                    # Read intermediate file content
-                    if intermediate_file:
-                        intermediate_path = intermediate_file
-                    else:
-                        intermediate_path = output.with_suffix(".preprocessed.md")
-
-                    intermediate_content = intermediate_path.read_text(encoding="utf-8")
-
-                    # Generate AI-powered meeting minutes
-                    meeting_title = title or "会議議事録"
-                    markdown_content = bedrock_generator.generate_minutes_from_markdown(
-                        intermediate_content, title=meeting_title, language="japanese"
-                    )
-                    progress.update(task3, description="✓ AI議事録生成完了")
-
-                    if verbose:
-                        console.print(f"Bedrockモデル: {bedrock_model}")
-                        console.print(f"リージョン: {bedrock_region}")
-                        console.print()
-
+                # Determine intermediate file path
+                if intermediate_file:
+                    intermediate_path = intermediate_file
                 else:
-                    # Use traditional summarizer
-                    summary = summarizer.create_summary(cues, title)
-                    markdown_content = summary.to_markdown()
-                    progress.update(task3, description="✓ 議事録生成完了")
+                    # Auto-generate intermediate file path for Bedrock
+                    intermediate_path = output.with_suffix(".preprocessed.md")
 
-                    if verbose:
-                        console.print(f"決定事項: {len(summary.decisions)}件")
-                        console.print(
-                            f"アクションアイテム: {len(summary.action_items)}件"
-                        )
-                        console.print(f"主要ポイント: {len(summary.key_points)}件")
-                        console.print()
+                # Generate metadata for intermediate file
+                intermediate_writer = IntermediateTranscriptWriter()
+                transcript_stats = intermediate_writer.get_statistics(cues)
+
+                metadata: dict[str, Any] = {
+                    "participants": transcript_stats["speakers"],
+                    "duration": intermediate_writer.format_duration(
+                        transcript_stats["duration"]
+                    ),
+                }
+
+                # Write intermediate file
+                intermediate_writer.write_markdown(
+                    cues, intermediate_path, title or "前処理済み会議記録", metadata
+                )
+
+                progress.update(task_intermediate, description="✓ 中間ファイル保存完了")
+
+                if verbose:
+                    console.print(f"中間ファイル: {intermediate_path}")
+                    console.print(f"発言者数: {len(transcript_stats['speakers'])}名")
+                    console.print(f"総単語数: {transcript_stats['word_count']}語")
+                    console.print()
+
+            except Exception as e:
+                progress.stop()
+                console.print(f"[red]中間ファイルの保存に失敗しました: {e}[/red]")
+                sys.exit(1)
+
+            # Step 3: Generate AI-powered meeting minutes using Bedrock
+            task3 = progress.add_task("AI議事録を生成中...", total=None)
+            try:
+                # Use Amazon Bedrock for AI-powered meeting minutes generation
+                bedrock_generator = BedrockMeetingMinutesGenerator(
+                    region_name=bedrock_region,
+                    model_id=bedrock_model,
+                )
+
+                # Read intermediate file content
+                intermediate_content = intermediate_path.read_text(encoding="utf-8")
+
+                # Generate AI-powered meeting minutes
+                meeting_title = title or "会議議事録"
+                markdown_content = bedrock_generator.generate_minutes_from_markdown(
+                    intermediate_content, title=meeting_title, language="japanese"
+                )
+                progress.update(task3, description="✓ AI議事録生成完了")
+
+                if verbose:
+                    console.print(f"Bedrockモデル: {bedrock_model}")
+                    console.print(f"リージョン: {bedrock_region}")
+                    console.print()
 
             except BedrockError as e:
                 progress.stop()
@@ -332,28 +295,18 @@ def main(
         )
 
         # Show brief summary
-        if use_bedrock:
-            # Show Bedrock-specific summary
-            meeting_title = title or "会議議事録"
-            console.print(f"\n[bold]{meeting_title}[/bold]")
-            console.print("AI議事録生成が完了しました")
-            if cues:
-                # Get stats from cues
-                writer = IntermediateTranscriptWriter()
-                summary_stats = writer.get_statistics(cues)
-                console.print(f"参加者: {len(summary_stats['speakers'])}名")
-                console.print(
-                    f"会議時間: {writer.format_duration(summary_stats['duration'])}"
-                )
-                console.print(f"総単語数: {summary_stats['word_count']}語")
-        else:
-            # Show traditional summary (summary is guaranteed to exist here)
-            if summary is not None:
-                console.print(f"\n[bold]{summary.title}[/bold]")
-                console.print(f"参加者: {len(summary.participants)}名")
-                console.print(f"会議時間: {summary.duration}")
-                console.print(f"決定事項: {len(summary.decisions)}件")
-                console.print(f"アクションアイテム: {len(summary.action_items)}件")
+        meeting_title = title or "会議議事録"
+        console.print(f"\n[bold]{meeting_title}[/bold]")
+        console.print("AI議事録生成が完了しました")
+        if cues:
+            # Get stats from cues
+            writer = IntermediateTranscriptWriter()
+            summary_stats = writer.get_statistics(cues)
+            console.print(f"参加者: {len(summary_stats['speakers'])}名")
+            console.print(
+                f"会議時間: {writer.format_duration(summary_stats['duration'])}"
+            )
+            console.print(f"総単語数: {summary_stats['word_count']}語")
 
     except KeyboardInterrupt:
         console.print("\n[yellow]処理が中断されました。[/yellow]")

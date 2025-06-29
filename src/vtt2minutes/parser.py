@@ -176,7 +176,7 @@ class VTTParser:
         # Look for Japanese speaker name pattern: "Name:" at the beginning
         speaker_name_pattern = re.compile(r"^([^\s:]+(?:\s+[^\s:]+)*)\s*:\s*(.*)$")
         speaker_name_match = speaker_name_pattern.match(clean_text.strip())
-        
+
         if speaker_name_match:
             speaker = speaker_name_match.group(1).strip()
             clean_text = speaker_name_match.group(2).strip()

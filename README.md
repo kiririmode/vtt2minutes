@@ -1,15 +1,15 @@
 # VTT2Minutes
 
-A Python tool that automatically generates high-quality meeting minutes from Microsoft Teams transcript files (VTT).
+A Python tool that automatically generates AI-powered meeting minutes from Microsoft Teams transcript files (VTT) using Amazon Bedrock.
 
 ## Features
 
 - **VTT File Parsing**: Analyze Microsoft Teams WebVTT format transcripts
 - **Advanced Preprocessing**: Improve transcription quality through filler word removal, noise reduction, and duplicate elimination
 - **Japanese & English Support**: Handle filler words and punctuation in both languages
-- **Automatic Meeting Minutes Generation**: Output structured meeting minutes in Markdown format
+- **AI-Powered Meeting Minutes**: Generate intelligent, context-aware meeting minutes using Amazon Bedrock
 - **Speaker Identification**: Identify and properly categorize each speaker's contributions
-- **Action Item Extraction**: Automatically detect action items and decisions
+- **Intermediate File Output**: Export preprocessed transcripts in structured Markdown format
 
 ## Installation
 
@@ -17,6 +17,8 @@ A Python tool that automatically generates high-quality meeting minutes from Mic
 
 - Python 3.12 or higher
 - uv (recommended package manager)
+- AWS Account with Amazon Bedrock access
+- AWS credentials configured
 
 ### Setup
 
@@ -30,6 +32,11 @@ uv sync
 
 # Install development dependencies (for developers)
 uv sync --extra dev
+
+# Configure AWS credentials (required)
+export AWS_ACCESS_KEY_ID=your-access-key
+export AWS_SECRET_ACCESS_KEY=your-secret-key
+# Or use: aws configure
 ```
 
 ## Usage
@@ -37,7 +44,7 @@ uv sync --extra dev
 ### Basic Usage
 
 ```bash
-# Generate meeting minutes from VTT file
+# Generate AI-powered meeting minutes from VTT file
 uv run python -m vtt2minutes meeting.vtt
 
 # Specify output file name
@@ -64,22 +71,14 @@ uv run python -m vtt2minutes meeting.vtt \
 
 # Use custom filler words file
 uv run python -m vtt2minutes meeting.vtt --filter-words-file my_filter_words.txt
-```
-
-### AI-Powered Meeting Minutes (Amazon Bedrock)
-
-```bash
-# Generate AI-powered meeting minutes using Amazon Bedrock
-uv run python -m vtt2minutes meeting.vtt --use-bedrock
 
 # Specify Bedrock model and region
-uv run python -m vtt2minutes meeting.vtt --use-bedrock \
+uv run python -m vtt2minutes meeting.vtt \
   --bedrock-model anthropic.claude-3-sonnet-20240229-v1:0 \
   --bedrock-region us-west-2
 
 # Save intermediate preprocessed file
-uv run python -m vtt2minutes meeting.vtt --use-bedrock \
-  --intermediate-file preprocessed.md
+uv run python -m vtt2minutes meeting.vtt --intermediate-file preprocessed.md
 ```
 
 ### File Information
@@ -227,7 +226,6 @@ aws configure set region us-east-1
 
 ### Bedrock Options
 
-- `--use-bedrock`: Enable Amazon Bedrock for AI-powered meeting minutes
 - `--bedrock-model`: Specify the Bedrock model ID to use
 - `--bedrock-region`: AWS region for Bedrock (default: us-east-1)
 - `--intermediate-file`: Path to save intermediate preprocessed file
@@ -235,16 +233,16 @@ aws configure set region us-east-1
 ### Example Usage
 
 ```bash
-# Basic Bedrock usage
-uv run python -m vtt2minutes meeting.vtt --use-bedrock
+# Basic usage (uses Claude 3 Haiku by default)
+uv run python -m vtt2minutes meeting.vtt
 
 # With custom model and region
-uv run python -m vtt2minutes meeting.vtt --use-bedrock \
+uv run python -m vtt2minutes meeting.vtt \
   --bedrock-model anthropic.claude-3-sonnet-20240229-v1:0 \
   --bedrock-region us-west-2
 
 # Save intermediate file for inspection
-uv run python -m vtt2minutes meeting.vtt --use-bedrock \
+uv run python -m vtt2minutes meeting.vtt \
   --intermediate-file meeting_preprocessed.md \
   --output ai_minutes.md
 ```
@@ -282,7 +280,7 @@ aws sts get-caller-identity
 aws bedrock list-foundation-models --region us-east-1
 
 # Test with verbose output for debugging
-uv run python -m vtt2minutes meeting.vtt --use-bedrock --verbose
+uv run python -m vtt2minutes meeting.vtt --verbose
 ```
 
 **Error Messages:**
@@ -332,7 +330,6 @@ src/vtt2minutes/
 ├── __init__.py          # Package entry point
 ├── parser.py            # VTT file parsing
 ├── preprocessor.py      # Text preprocessing
-├── summarizer.py        # Meeting minutes generation
 ├── intermediate.py      # Intermediate file output
 ├── bedrock.py           # Amazon Bedrock integration
 └── cli.py              # Command-line interface
@@ -342,7 +339,6 @@ src/vtt2minutes/
 
 - **VTTParser**: WebVTT file parsing and VTTCue object generation
 - **TextPreprocessor**: Filler word removal, duplicate elimination, text cleaning
-- **MeetingSummarizer**: Meeting minutes structure generation and Markdown output
 - **IntermediateTranscriptWriter**: Preprocessed transcript output in Markdown format
 - **BedrockMeetingMinutesGenerator**: AI-powered meeting minutes using Amazon Bedrock
 
@@ -354,7 +350,7 @@ src/vtt2minutes/
 - **Output Format**: Markdown (.md)
 - **Intermediate Format**: Structured Markdown (.md)
 - **Character Encoding**: UTF-8
-- **Cloud Integration**: Amazon Bedrock (optional)
+- **Cloud Integration**: Amazon Bedrock (required)
 
 ## License
 
@@ -380,12 +376,12 @@ For detailed development guidelines, see `CLAUDE.md`.
 - **Quality Improvement**: Clean up automatic transcription artifacts for better readability
 - **Time Saving**: Automate the manual process of creating structured meeting notes
 - **AI-Enhanced Processing**: Generate intelligent, context-aware meeting minutes using Amazon Bedrock
-- **Hybrid Workflows**: Combine traditional preprocessing with AI-powered summarization
 - **Enterprise Integration**: Scale meeting documentation with cloud-based AI services
 
 ## Limitations
 
 - Currently supports Microsoft Teams VTT format specifically
-- Automatic action item and decision detection may require manual review for accuracy
+- Requires AWS account and Bedrock access (incurs AWS charges)
 - Best results with clear audio and distinct speakers
 - Some context-dependent filler word detection may vary by meeting style
+- Internet connection required for AI processing
