@@ -15,32 +15,22 @@ class TestPromptTemplateFeature:
     def test_substitute_placeholders(self) -> None:
         """Test placeholder substitution."""
         generator = BedrockMeetingMinutesGenerator()
-        template = "Title: {title}\nContent: {markdown_content}\nLanguage: {language}"
+        template = "Title: {title}\nContent: {markdown_content}"
 
         result = generator._substitute_placeholders(
-            template, "Test content", "Test Title", "japanese"
+            template, "Test content", "Test Title"
         )
 
-        expected = "Title: Test Title\nContent: Test content\nLanguage: japanese"
+        expected = "Title: Test Title\nContent: Test content"
         assert result == expected
 
     def test_default_prompt_japanese(self) -> None:
         """Test default Japanese prompt generation."""
         generator = BedrockMeetingMinutesGenerator()
 
-        result = generator._get_default_prompt("Test content", "Test Title", "japanese")
+        result = generator._get_default_prompt("Test content", "Test Title")
 
         assert "以下の前処理済み会議記録から" in result
-        assert "Test Title" in result
-        assert "Test content" in result
-
-    def test_default_prompt_english(self) -> None:
-        """Test default English prompt generation."""
-        generator = BedrockMeetingMinutesGenerator()
-
-        result = generator._get_default_prompt("Test content", "Test Title", "english")
-
-        assert "Please create structured meeting minutes" in result
         assert "Test Title" in result
         assert "Test content" in result
 
@@ -57,7 +47,7 @@ class TestPromptTemplateFeature:
                 prompt_template_file=template_path
             )
 
-            result = generator._create_prompt("Test content", "Test Title", "japanese")
+            result = generator._create_prompt("Test content", "Test Title")
 
             expected = "Custom template: Test Title\nTest content"
             assert result == expected
@@ -72,7 +62,7 @@ class TestPromptTemplateFeature:
             prompt_template_file=nonexistent_path
         )
 
-        result = generator._create_prompt("Test content", "Test Title", "japanese")
+        result = generator._create_prompt("Test content", "Test Title")
 
         # Should fall back to default prompt
         assert "以下の前処理済み会議記録から" in result
@@ -85,15 +75,14 @@ class TestPromptTemplateFeature:
         generator = BedrockMeetingMinutesGenerator(prompt_template_file=directory_path)
 
         with pytest.raises(BedrockError, match="Failed to read prompt template file"):
-            generator._create_prompt("Test content", "Test Title", "japanese")
+            generator._create_prompt("Test content", "Test Title")
 
     def test_template_with_all_placeholders(self) -> None:
         """Test template with all available placeholders."""
         template_content = (
             "Title: {title}\n"
             "Content: {markdown_content}\n"
-            "Language: {language}\n"
-            "Custom instruction for {language} output."
+            "Japanese meeting minutes instruction."
         )
 
         with NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
@@ -106,14 +95,13 @@ class TestPromptTemplateFeature:
             )
 
             result = generator._create_prompt(
-                "Meeting transcript here", "Weekly Standup", "japanese"
+                "Meeting transcript here", "Weekly Standup"
             )
 
             expected = (
                 "Title: Weekly Standup\n"
                 "Content: Meeting transcript here\n"
-                "Language: japanese\n"
-                "Custom instruction for japanese output."
+                "Japanese meeting minutes instruction."
             )
             assert result == expected
         finally:
@@ -145,7 +133,7 @@ class TestPromptTemplateFeature:
             )
 
             result = generator.generate_minutes_from_markdown(
-                "Test transcript", "Test Meeting", "japanese"
+                "Test transcript", "Test Meeting"
             )
 
             assert result == "Generated minutes"

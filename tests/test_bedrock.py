@@ -121,25 +121,10 @@ class TestBedrockMeetingMinutesGenerator:
         )
 
         prompt = generator._create_prompt(
-            "# Test Content\nSpeaker: Hello", "Test Meeting", "japanese"
+            "# Test Content\nSpeaker: Hello", "Test Meeting"
         )
 
         assert "構造化された議事録を作成してください" in prompt
-        assert "Test Meeting" in prompt
-        assert "Test Content" in prompt
-
-    def test_create_prompt_english(self) -> None:
-        """Test English prompt creation."""
-        generator = BedrockMeetingMinutesGenerator(
-            aws_access_key_id="test_key",
-            aws_secret_access_key="test_secret",
-        )
-
-        prompt = generator._create_prompt(
-            "# Test Content\nSpeaker: Hello", "Test Meeting", "english"
-        )
-
-        assert "structured meeting minutes" in prompt
         assert "Test Meeting" in prompt
         assert "Test Content" in prompt
 
@@ -281,7 +266,6 @@ class TestBedrockMeetingMinutesGenerator:
         result = generator.generate_minutes_from_markdown(
             "# Test Meeting\n\nSpeaker: Hello world",
             title="Test Meeting",
-            language="japanese",
         )
 
         assert result == "# Meeting Minutes\n\nGenerated content"

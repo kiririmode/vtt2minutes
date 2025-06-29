@@ -6,7 +6,7 @@ A Python tool that automatically generates AI-powered meeting minutes from Micro
 
 - **VTT File Parsing**: Analyze Microsoft Teams WebVTT format transcripts
 - **Advanced Preprocessing**: Improve transcription quality through filler word removal, word replacement, noise reduction, and duplicate elimination
-- **Japanese & English Support**: Handle filler words and punctuation in both languages
+- **Japanese Language Support**: Handle Japanese filler words and punctuation
 - **AI-Powered Meeting Minutes**: Generate intelligent, context-aware meeting minutes using Amazon Bedrock
 - **Speaker Identification**: Identify and properly categorize each speaker's contributions
 - **Intermediate File Output**: Export preprocessed transcripts in structured Markdown format
@@ -171,13 +171,8 @@ I would like to discuss the new features today. First, let me share the current 
 - えー, あー, うー, そのー, なんか, まあ, ちょっと
 - えっと, あのー, そうですね, はい, ええ, うん
 
-### English  
-- um, uh, like, you know, so, well, okay, right
-- actually, basically, literally, honestly
-
 ### Transcription Artifacts
 - [音声が途切れました], [雑音], [不明瞭], [咳], [笑い]
-- [audio interrupted], [noise], [unclear], [cough], [laughter]
 
 ## Custom Filler Words File
 
@@ -193,10 +188,9 @@ You can create a custom filler words file to override the default filler words. 
 そのー
 まぁ
 
-# Custom English filler words
-basically
-obviously
-definitely
+# Additional custom filler words
+まじで
+やっぱり
 
 # Custom transcription artifacts
 [microphone feedback]

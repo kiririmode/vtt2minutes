@@ -116,18 +116,6 @@ class PreprocessingConfig:
             "はい",
             "ええ",
             "うん",
-            # English filler words
-            "um",
-            "uh",
-            "like",
-            "you know",
-            "well",
-            "okay",
-            "right",
-            "actually",
-            "basically",
-            "literally",
-            "honestly",
             # Common transcription artifacts
             "[音声が途切れました]",
             "[雑音]",
@@ -310,10 +298,10 @@ class TextPreprocessor:
         return result_text
 
     def _remove_filler_words(self, text: str) -> str:
-        """Remove filler words from text.
+        """Remove filler words from Japanese text.
 
         Args:
-            text: Input text
+            text: Input Japanese text
 
         Returns:
             Text with filler words removed
@@ -321,49 +309,32 @@ class TextPreprocessor:
         if not self.config.filler_words:
             return text
 
-        # Check if text is primarily Japanese
-        is_japanese = bool(re.search(r"[ひらがなカタカナ漢字]", text))
+        # Split into segments at punctuation marks, preserving them
+        segments = re.split(r"([、。，．！？])", text)
+        result_segments: list[str] = []
 
-        # For Japanese text, split preserving punctuation structure
-        if is_japanese:
-            # Split into segments at punctuation marks, preserving them
-            segments = re.split(r"([、。，．！？])", text)
-            result_segments: list[str] = []
+        for segment in segments:
+            if segment in ["、", "。", "，", "．", "！", "？"]:
+                # Keep punctuation as-is
+                result_segments.append(segment)
+            else:
+                # Process words in this segment
+                words = segment.split()
+                filtered_words: list[str] = []
 
-            for segment in segments:
-                if segment in ["、", "。", "，", "．", "！", "？"]:
-                    # Keep punctuation as-is
-                    result_segments.append(segment)
-                else:
-                    # Process words in this segment
-                    words = segment.split()
-                    filtered_words: list[str] = []
+                for word in words:
+                    # Remove punctuation for comparison
+                    clean_word = re.sub(r"[^\w]", "", word.lower())
+                    if clean_word not in self.config.filler_words:
+                        filtered_words.append(word)
 
-                    for word in words:
-                        # Remove punctuation for comparison
-                        clean_word = re.sub(r"[^\w]", "", word.lower())
-                        if clean_word not in self.config.filler_words:
-                            filtered_words.append(word)
+                # Join filtered words without extra spaces
+                if filtered_words:
+                    result_segments.append("".join(filtered_words))
 
-                    # Join filtered words without extra spaces
-                    if filtered_words:
-                        result_segments.append("".join(filtered_words))
-
-            result = "".join(result_segments)
-            # Clean up leading punctuation
-            result = re.sub(r"^[、，]", "", result)
-        else:
-            # For English/other languages, process normally
-            words = re.findall(r"[^\s、。，．！？!?]+", text)
-            filtered_words: list[str] = []
-
-            for word in words:
-                # Remove punctuation for comparison
-                clean_word = re.sub(r"[^\w]", "", word.lower())
-                if clean_word not in self.config.filler_words:
-                    filtered_words.append(word)
-
-            result = " ".join(filtered_words)
+        result = "".join(result_segments)
+        # Clean up leading punctuation
+        result = re.sub(r"^[、，]", "", result)
 
         # Add back sentence-ending punctuation if original had it and result doesn't
         if text.endswith(("。", ".", "！", "!", "？", "?")):
@@ -373,16 +344,11 @@ class TextPreprocessor:
                     result += "。"
                 elif text.endswith("."):
                     result += "."
-                elif is_japanese:
-                    result += "。"
                 else:
-                    result += "."
+                    result += "。"
         elif text.strip() and not result.endswith(("。", ".", "！", "!", "？", "?")):
             # Add appropriate punctuation if none exists
-            if is_japanese:
-                result += "。"
-            else:
-                result += "."
+            result += "。"
 
         return result
 

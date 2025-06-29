@@ -92,14 +92,12 @@ class BedrockMeetingMinutesGenerator:
         self,
         markdown_content: str,
         title: str = "会議議事録",
-        language: str = "japanese",
     ) -> str:
-        """Generate meeting minutes from preprocessed Markdown content.
+        """Generate Japanese meeting minutes from preprocessed Markdown content.
 
         Args:
             markdown_content: Preprocessed transcript in Markdown format
             title: Title for the meeting minutes
-            language: Language for the output ("japanese" or "english")
 
         Returns:
             Generated meeting minutes in Markdown format
@@ -107,7 +105,7 @@ class BedrockMeetingMinutesGenerator:
         Raises:
             BedrockError: If the API call fails
         """
-        prompt = self._create_prompt(markdown_content, title, language)
+        prompt = self._create_prompt(markdown_content, title)
 
         try:
             response = self._invoke_model(prompt)
@@ -160,13 +158,12 @@ class BedrockMeetingMinutesGenerator:
         except BotoCoreError as e:
             raise BedrockError(f"AWS connection error: {e}") from e
 
-    def _create_prompt(self, markdown_content: str, title: str, language: str) -> str:
-        """Create a prompt for meeting minutes generation.
+    def _create_prompt(self, markdown_content: str, title: str) -> str:
+        """Create a prompt for Japanese meeting minutes generation.
 
         Args:
             markdown_content: Preprocessed transcript content
             title: Meeting title
-            language: Target language
 
         Returns:
             Formatted prompt string
@@ -176,7 +173,7 @@ class BedrockMeetingMinutesGenerator:
             try:
                 template_content = self.prompt_template_file.read_text(encoding="utf-8")
                 return self._substitute_placeholders(
-                    template_content, markdown_content, title, language
+                    template_content, markdown_content, title
                 )
             except Exception as e:
                 raise BedrockError(
@@ -185,10 +182,10 @@ class BedrockMeetingMinutesGenerator:
                 ) from e
 
         # Fallback to default prompts
-        return self._get_default_prompt(markdown_content, title, language)
+        return self._get_default_prompt(markdown_content, title)
 
     def _substitute_placeholders(
-        self, template: str, markdown_content: str, title: str, language: str
+        self, template: str, markdown_content: str, title: str
     ) -> str:
         """Substitute placeholders in the template with actual values.
 
@@ -196,7 +193,6 @@ class BedrockMeetingMinutesGenerator:
             template: Template string with placeholders
             markdown_content: Preprocessed transcript content
             title: Meeting title
-            language: Target language
 
         Returns:
             Template with placeholders substituted
@@ -204,7 +200,6 @@ class BedrockMeetingMinutesGenerator:
         placeholders = {
             "markdown_content": markdown_content,
             "title": title,
-            "language": language,
         }
 
         result = template
@@ -213,62 +208,36 @@ class BedrockMeetingMinutesGenerator:
 
         return result
 
-    def _get_default_prompt(
-        self, markdown_content: str, title: str, language: str
-    ) -> str:
-        """Get the default prompt template.
+    def _get_default_prompt(self, markdown_content: str, title: str) -> str:
+        """Get the default prompt template for Japanese meeting minutes.
 
         Args:
             markdown_content: Preprocessed transcript content
             title: Meeting title
-            language: Target language
 
         Returns:
-            Default prompt string
+            Default Japanese prompt string
         """
-        if language.lower() == "japanese":
-            return (
-                f"以下の前処理済み会議記録から、構造化された議事録を作成してください。\n\n"
-                f"要件:\n"
-                f"1. 議題、決定事項、アクションアイテムを明確に抽出する\n"
-                f"2. 発言者の意図を正確に反映する\n"
-                f"3. 時系列順に整理する\n"
-                f"4. 重要なポイントを強調する\n"
-                f"5. Markdown形式で出力する\n\n"
-                f"タイトル: {title}\n\n"
-                f"前処理済み会議記録:\n{markdown_content}\n\n"
-                f"以下の構造で議事録を作成してください:\n"
-                f"- # タイトル\n"
-                f"- ## 会議概要 (日時、参加者、目的)\n"
-                f"- ## 主要な議題\n"
-                f"- ## 決定事項\n"
-                f"- ## アクションアイテム\n"
-                f"- ## 次回までの課題\n"
-                f"- ## 詳細な議論内容\n\n"
-                f"議事録:"
-            )
-        else:
-            return (
-                f"Please create structured meeting minutes from the following "
-                f"preprocessed transcript.\n\n"
-                f"Requirements:\n"
-                f"1. Clearly extract agenda items, decisions, and action items\n"
-                f"2. Accurately reflect speakers' intentions\n"
-                f"3. Organize chronologically\n"
-                f"4. Highlight important points\n"
-                f"5. Output in Markdown format\n\n"
-                f"Title: {title}\n\n"
-                f"Preprocessed Meeting Transcript:\n{markdown_content}\n\n"
-                f"Please create meeting minutes with the following structure:\n"
-                f"- # Title\n"
-                f"- ## Meeting Overview (date, participants, purpose)\n"
-                f"- ## Key Agenda Items\n"
-                f"- ## Decisions Made\n"
-                f"- ## Action Items\n"
-                f"- ## Tasks for Next Meeting\n"
-                f"- ## Detailed Discussion\n\n"
-                f"Meeting Minutes:"
-            )
+        return (
+            f"以下の前処理済み会議記録から、構造化された議事録を作成してください。\n\n"
+            f"要件:\n"
+            f"1. 議題、決定事項、アクションアイテムを明確に抽出する\n"
+            f"2. 発言者の意図を正確に反映する\n"
+            f"3. 時系列順に整理する\n"
+            f"4. 重要なポイントを強調する\n"
+            f"5. Markdown形式で出力する\n\n"
+            f"タイトル: {title}\n\n"
+            f"前処理済み会議記録:\n{markdown_content}\n\n"
+            f"以下の構造で議事録を作成してください:\n"
+            f"- # タイトル\n"
+            f"- ## 会議概要 (日時、参加者、目的)\n"
+            f"- ## 主要な議題\n"
+            f"- ## 決定事項\n"
+            f"- ## アクションアイテム\n"
+            f"- ## 次回までの課題\n"
+            f"- ## 詳細な議論内容\n\n"
+            f"議事録:"
+        )
 
     def _invoke_model(self, prompt: str) -> dict[str, Any]:
         """Invoke the Bedrock model with the given prompt.

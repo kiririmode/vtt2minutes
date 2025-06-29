@@ -27,7 +27,6 @@ class TestPreprocessingConfig:
 
         # Check some expected filler words
         assert "えー" in config.filler_words
-        assert "um" in config.filler_words
         assert "あのー" in config.filler_words
 
     def test_custom_initialization(self) -> None:
@@ -107,7 +106,6 @@ class TestTextPreprocessor:
                 "佐藤",
                 "あのー、そうですね、わかりました。",
             ),
-            VTTCue("00:00:05.000", "00:00:07.000", "山田", "Um, I think so."),
         ]
 
         result = preprocessor.preprocess_cues(cues)
@@ -119,9 +117,6 @@ class TestTextPreprocessor:
         assert "あのー" not in result[1].text
         assert "そうですね" not in result[1].text
         assert "わかりました" in result[1].text
-
-        assert "Um" not in result[2].text
-        assert "I think so" in result[2].text or "think so" in result[2].text
 
     def test_transcription_error_fixing(self, preprocessor: TextPreprocessor) -> None:
         """Test fixing of common transcription errors."""
@@ -138,7 +133,7 @@ class TestTextPreprocessor:
         assert "これはです" in result[0].text
         assert "わかります" in result[1].text
         assert "同じことです" in result[2].text
-        assert "多 く の 空 白" in result[3].text
+        assert "多くの空白" in result[3].text
 
     def test_minimum_text_length_filter(self, preprocessor: TextPreprocessor) -> None:
         """Test filtering based on minimum text length."""
@@ -256,9 +251,6 @@ class TestTextPreprocessor:
                 "00:00:01.000", "00:00:03.000", "田中", "これは日本語の文章"
             ),  # No punctuation
             VTTCue(
-                "00:00:03.000", "00:00:05.000", "佐藤", "This is English"
-            ),  # No punctuation
-            VTTCue(
                 "00:00:05.000", "00:00:07.000", "山田", "既に句読点があります。"
             ),  # Has punctuation
             VTTCue(
@@ -269,9 +261,8 @@ class TestTextPreprocessor:
         result = preprocessor.preprocess_cues(cues)
 
         assert "これは日本語の文章" in result[0].text
-        assert "This is English" in result[1].text
-        assert "既に句読点があります" in result[2].text
-        assert "複数の" in result[3].text and "句読点" in result[3].text
+        assert "既に句読点があります" in result[1].text
+        assert "複数の" in result[2].text and "句読点" in result[2].text
 
     def test_comprehensive_preprocessing(
         self, preprocessor: TextPreprocessor, sample_cues: list[VTTCue]
@@ -568,8 +559,8 @@ class TestJapaneseTextProcessing:
             # Check that some meaningful content is preserved
             assert len(cue.text) > 5  # Should have substantial content
 
-    def test_mixed_japanese_english_processing(self) -> None:
-        """Test processing of mixed Japanese and English content."""
+    def test_mixed_japanese_processing(self) -> None:
+        """Test processing of Japanese content with technical terms."""
         config = PreprocessingConfig()
         preprocessor = TextPreprocessor(config)
 
@@ -584,7 +575,7 @@ class TestJapaneseTextProcessing:
                 "00:00:03.000",
                 "00:00:05.000",
                 "佐藤",
-                "um、well、I think、えー、いいと思います。",
+                "APIの仕様について、えー、いいと思います。",
             ),
         ]
 
@@ -597,9 +588,8 @@ class TestJapaneseTextProcessing:
         assert "、" in result[0].text
 
         # Check mixed content processing
-        assert "um" not in result[1].text
-        assert "well" not in result[1].text
-        assert "I think" in result[1].text
+        assert "えー" not in result[1].text
+        assert "API" in result[1].text
         assert "いいと思います" in result[1].text
 
     def test_complex_japanese_sentence_structure(self) -> None:
@@ -649,12 +639,6 @@ class TestJapaneseTextProcessing:
                 "田中",
                 "ただ、ちょっとだけ、進捗が、あの、遅れそうでして、うーん、追加の、作業が必要かと…。",
             ),
-            VTTCue(
-                "00:00:03.000",
-                "00:00:05.000",
-                "Smith",
-                "Well, um, I think that, uh, we need to, you know, address this issue.",
-            ),
         ]
 
         result = preprocessor.preprocess_cues(cues)
@@ -667,14 +651,6 @@ class TestJapaneseTextProcessing:
         assert "作業が必要かと" in japanese_text
         # Should not have unnatural consecutive spaces in Japanese
         assert "  " not in japanese_text
-
-        # English text should maintain proper word spacing
-        english_text = result[1].text
-        assert "I think that" in english_text
-        assert "address this issue" in english_text
-        # English should have proper spaces between words
-        words = english_text.split()
-        assert len(words) >= 5  # Should have multiple words properly spaced
 
     def test_punctuation_boundary_cases(self) -> None:
         """Test edge cases with punctuation and filler word boundaries."""

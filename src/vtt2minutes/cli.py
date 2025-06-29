@@ -273,7 +273,7 @@ def main(
                 # Generate AI-powered meeting minutes
                 meeting_title = title or "会議議事録"
                 markdown_content = bedrock_generator.generate_minutes_from_markdown(
-                    intermediate_content, title=meeting_title, language="japanese"
+                    intermediate_content, title=meeting_title
                 )
                 progress.update(task3, description="✓ AI議事録生成完了")
 
