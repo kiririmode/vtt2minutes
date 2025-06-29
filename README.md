@@ -395,16 +395,9 @@ This project uses GitHub Actions for continuous integration and deployment:
 - **Security Audit**: Scans for security vulnerabilities in dependencies
 - **License Check**: Validates license compatibility
 
-**Release Pipeline (`release.yml`):**
-- **Automated Releases**: Triggered on version tags (e.g., `v1.0.0`)
-- **Package Validation**: Full test suite and quality checks before release
-- **GitHub Releases**: Creates release notes and uploads distribution files
-- **PyPI Publishing**: Automatically publishes to PyPI with proper credentials
-
 **Workflow Triggers:**
 - Push to `main` or `develop` branches
 - Pull requests to `main` or `develop`
-- Version tags for releases
 - Manual triggers for testing
 
 ### Running Tests Locally
