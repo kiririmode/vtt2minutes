@@ -52,6 +52,14 @@ This document contains critical information about working with this codebase. Fo
 - NEVER ever mention a `co-authored-by` or similar aspects. In particular, never
   mention the tool used to create the commit message or PR.
 
+## Pre-commit Hooks
+
+- Pre-commit hooks are automatically installed and run quality checks before each commit
+- The hooks check: formatting (ruff), linting (ruff), type checking (pyright), and tests (pytest)
+- If any check fails, the commit is blocked until issues are resolved
+- To install hooks after cloning: `./scripts/setup-hooks.sh`
+- To bypass temporarily (not recommended): `git commit --no-verify`
+
 ## Python Tools
 
 ## Code Formatting

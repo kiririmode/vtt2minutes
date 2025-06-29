@@ -426,11 +426,33 @@ uv run ruff check .
 uv run pyright
 ```
 
-### Pre-commit Checks
+### Pre-commit Hooks
 
+This project includes automatic quality checks that run before each commit:
+
+```bash
+# Install pre-commit hooks (run once after cloning)
+./scripts/setup-hooks.sh
+```
+
+**What gets checked automatically:**
+- Code formatting with `ruff format`
+- Linting with `ruff check`
+- Type checking with `pyright`
+- Test execution with `pytest`
+
+**Manual quality checks:**
 ```bash
 # Run formatting and linting together
 uv run ruff format . && uv run ruff check . --fix
+
+# Run all checks manually (same as pre-commit hook)
+uv run ruff format --check . && uv run ruff check . && uv run pyright && PYTEST_DISABLE_PLUGIN_AUTOLOAD="" uv run pytest --tb=short --quiet
+```
+
+**Bypass hooks temporarily (not recommended):**
+```bash
+git commit --no-verify
 ```
 
 ## Architecture
