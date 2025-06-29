@@ -124,7 +124,7 @@ class TestBedrockMeetingMinutesGenerator:
             "# Test Content\nSpeaker: Hello", "Test Meeting"
         )
 
-        assert "構造化された議事録を作成してください" in prompt
+        assert "以下をセクションとする議事録を作成してください" in prompt
         assert "Test Meeting" in prompt
         assert "Test Content" in prompt
 

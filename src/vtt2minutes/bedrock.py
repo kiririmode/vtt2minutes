@@ -181,8 +181,41 @@ class BedrockMeetingMinutesGenerator:
                     f"{self.prompt_template_file}: {e}"
                 ) from e
 
-        # Fallback to default prompts
-        return self._get_default_prompt(markdown_content, title)
+        # Try to use default template file from prompt_templates/default.txt
+        default_template_path = (
+            Path(__file__).parent.parent.parent / "prompt_templates" / "default.txt"
+        )
+        if default_template_path.exists():
+            try:
+                template_content = default_template_path.read_text(encoding="utf-8")
+                return self._substitute_placeholders(
+                    template_content, markdown_content, title
+                )
+            except Exception:
+                # If default template file fails, fallback to hardcoded prompt
+                pass
+
+        # Final fallback to hardcoded prompt
+        return (
+            f"以下の前処理済み会議記録から、構造化された議事録を作成してください。\n\n"
+            f"要件:\n"
+            f"1. 議題、決定事項、アクションアイテムを明確に抽出する\n"
+            f"2. 発言者の意図を正確に反映する\n"
+            f"3. 時系列順に整理する\n"
+            f"4. 重要なポイントを強調する\n"
+            f"5. Markdown形式で出力する\n\n"
+            f"タイトル: {title}\n\n"
+            f"前処理済み会議記録:\n{markdown_content}\n\n"
+            f"以下の構造で議事録を作成してください:\n"
+            f"- # タイトル\n"
+            f"- ## 会議概要 (日時、参加者、目的)\n"
+            f"- ## 主要な議題\n"
+            f"- ## 決定事項\n"
+            f"- ## アクションアイテム\n"
+            f"- ## 次回までの課題\n"
+            f"- ## 詳細な議論内容\n\n"
+            f"議事録:"
+        )
 
     def _substitute_placeholders(
         self, template: str, markdown_content: str, title: str
@@ -207,37 +240,6 @@ class BedrockMeetingMinutesGenerator:
             result = result.replace(f"{{{placeholder}}}", str(value))
 
         return result
-
-    def _get_default_prompt(self, markdown_content: str, title: str) -> str:
-        """Get the default prompt template for Japanese meeting minutes.
-
-        Args:
-            markdown_content: Preprocessed transcript content
-            title: Meeting title
-
-        Returns:
-            Default Japanese prompt string
-        """
-        return (
-            f"以下の前処理済み会議記録から、構造化された議事録を作成してください。\n\n"
-            f"要件:\n"
-            f"1. 議題、決定事項、アクションアイテムを明確に抽出する\n"
-            f"2. 発言者の意図を正確に反映する\n"
-            f"3. 時系列順に整理する\n"
-            f"4. 重要なポイントを強調する\n"
-            f"5. Markdown形式で出力する\n\n"
-            f"タイトル: {title}\n\n"
-            f"前処理済み会議記録:\n{markdown_content}\n\n"
-            f"以下の構造で議事録を作成してください:\n"
-            f"- # タイトル\n"
-            f"- ## 会議概要 (日時、参加者、目的)\n"
-            f"- ## 主要な議題\n"
-            f"- ## 決定事項\n"
-            f"- ## アクションアイテム\n"
-            f"- ## 次回までの課題\n"
-            f"- ## 詳細な議論内容\n\n"
-            f"議事録:"
-        )
 
     def _invoke_model(self, prompt: str) -> dict[str, Any]:
         """Invoke the Bedrock model with the given prompt.

@@ -24,11 +24,20 @@ class TestPromptTemplateFeature:
         expected = "Title: Test Title\nContent: Test content"
         assert result == expected
 
-    def test_default_prompt_japanese(self) -> None:
-        """Test default Japanese prompt generation."""
-        generator = BedrockMeetingMinutesGenerator()
+    def test_fallback_prompt_when_no_template(self) -> None:
+        """Test fallback hardcoded prompt when no template files are available."""
+        # Use a nonexistent custom template and ensure default template doesn't exist
+        nonexistent_path = Path("/nonexistent/template.txt")
 
-        result = generator._get_default_prompt("Test content", "Test Title")
+        generator = BedrockMeetingMinutesGenerator(
+            prompt_template_file=nonexistent_path
+        )
+
+        # Mock the default template path to not exist
+        import unittest.mock
+
+        with unittest.mock.patch("pathlib.Path.exists", return_value=False):
+            result = generator._create_prompt("Test content", "Test Title")
 
         assert "以下の前処理済み会議記録から" in result
         assert "Test Title" in result
@@ -65,7 +74,7 @@ class TestPromptTemplateFeature:
         result = generator._create_prompt("Test content", "Test Title")
 
         # Should fall back to default prompt
-        assert "以下の前処理済み会議記録から" in result
+        assert "以下をセクションとする議事録を作成してください" in result
 
     def test_template_file_read_error(self) -> None:
         """Test error handling when template file can't be read."""
