@@ -363,7 +363,7 @@ class TestFilterWordsFile:
         """Test loading filler words from a file."""
         # Create a temporary filter words file
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.txt', delete=False, encoding='utf-8'
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
         ) as f:
             f.write("# Test filter words file\n")
             f.write("えー\n")
@@ -391,7 +391,7 @@ class TestFilterWordsFile:
     def test_load_filler_words_empty_file(self) -> None:
         """Test loading from an empty filter words file."""
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.txt', delete=False, encoding='utf-8'
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
         ) as f:
             f.write("# Only comments\n")
             f.write("\n")
@@ -407,7 +407,7 @@ class TestFilterWordsFile:
     def test_load_filler_words_with_unicode(self) -> None:
         """Test loading Japanese and other unicode filler words."""
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.txt', delete=False, encoding='utf-8'
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
         ) as f:
             f.write("あのー\n")
             f.write("そうですね\n")
@@ -425,7 +425,7 @@ class TestFilterWordsFile:
     def test_filler_words_file_overrides_default(self) -> None:
         """Test that filler words file overrides default words."""
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.txt', delete=False, encoding='utf-8'
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
         ) as f:
             f.write("custom_word1\n")
             f.write("custom_word2\n")
@@ -436,15 +436,16 @@ class TestFilterWordsFile:
 
             # Should only contain custom words, not defaults
             assert config.filler_words == {"custom_word1", "custom_word2"}
+            assert config.filler_words is not None
             assert "えー" not in config.filler_words  # Default Japanese word
-            assert "um" not in config.filler_words    # Default English word
+            assert "um" not in config.filler_words  # Default English word
         finally:
             temp_path.unlink()
 
     def test_preprocessor_with_custom_filter_file(self) -> None:
         """Test text preprocessor using custom filter words file."""
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.txt', delete=False, encoding='utf-8'
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
         ) as f:
             f.write("custom_filler\n")
             f.write("test_word\n")

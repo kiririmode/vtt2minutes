@@ -66,6 +66,22 @@ uv run python -m vtt2minutes meeting.vtt \
 uv run python -m vtt2minutes meeting.vtt --filter-words-file my_filter_words.txt
 ```
 
+### AI-Powered Meeting Minutes (Amazon Bedrock)
+
+```bash
+# Generate AI-powered meeting minutes using Amazon Bedrock
+uv run python -m vtt2minutes meeting.vtt --use-bedrock
+
+# Specify Bedrock model and region
+uv run python -m vtt2minutes meeting.vtt --use-bedrock \
+  --bedrock-model anthropic.claude-3-sonnet-20240229-v1:0 \
+  --bedrock-region us-west-2
+
+# Save intermediate preprocessed file
+uv run python -m vtt2minutes meeting.vtt --use-bedrock \
+  --intermediate-file preprocessed.md
+```
+
 ### File Information
 
 ```bash
@@ -179,6 +195,101 @@ uv run python -m vtt2minutes meeting.vtt --filter-words-file my_filters.txt
 
 **Note**: When using a custom filter words file, it completely replaces the default filler words. If you want to keep some default words, include them in your custom file.
 
+## Amazon Bedrock Integration
+
+VTT2Minutes supports AI-powered meeting minutes generation using Amazon Bedrock, providing more sophisticated and context-aware output compared to traditional keyword-based summarization.
+
+### Prerequisites
+
+1. **AWS Account**: You need an active AWS account with Bedrock access
+2. **Bedrock Model Access**: Request access to Claude models in your AWS region
+3. **AWS Credentials**: Configure your AWS credentials using environment variables
+
+### AWS Credentials Setup
+
+```bash
+# Set environment variables
+export AWS_ACCESS_KEY_ID=your-access-key-id
+export AWS_SECRET_ACCESS_KEY=your-secret-access-key
+export AWS_SESSION_TOKEN=your-session-token  # Optional, for temporary credentials
+
+# Or using AWS CLI profile
+aws configure set aws_access_key_id your-access-key-id
+aws configure set aws_secret_access_key your-secret-access-key
+aws configure set region us-east-1
+```
+
+### Supported Models
+
+- **Claude 3 Haiku** (default): `anthropic.claude-3-haiku-20240307-v1:0`
+- **Claude 3 Sonnet**: `anthropic.claude-3-sonnet-20240229-v1:0`
+- **Claude 3 Opus**: `anthropic.claude-3-opus-20240229-v1:0`
+
+### Bedrock Options
+
+- `--use-bedrock`: Enable Amazon Bedrock for AI-powered meeting minutes
+- `--bedrock-model`: Specify the Bedrock model ID to use
+- `--bedrock-region`: AWS region for Bedrock (default: us-east-1)
+- `--intermediate-file`: Path to save intermediate preprocessed file
+
+### Example Usage
+
+```bash
+# Basic Bedrock usage
+uv run python -m vtt2minutes meeting.vtt --use-bedrock
+
+# With custom model and region
+uv run python -m vtt2minutes meeting.vtt --use-bedrock \
+  --bedrock-model anthropic.claude-3-sonnet-20240229-v1:0 \
+  --bedrock-region us-west-2
+
+# Save intermediate file for inspection
+uv run python -m vtt2minutes meeting.vtt --use-bedrock \
+  --intermediate-file meeting_preprocessed.md \
+  --output ai_minutes.md
+```
+
+### How It Works
+
+1. **Preprocessing**: VTT file is processed to remove filler words and clean up transcription
+2. **Intermediate File**: Preprocessed content is saved in structured Markdown format
+3. **AI Generation**: Bedrock model analyzes the intermediate file and generates comprehensive meeting minutes
+4. **Output**: AI-generated minutes are saved in final output file
+
+### Benefits of AI-Powered Minutes
+
+- **Context Awareness**: Better understanding of meeting flow and relationships between topics
+- **Intelligent Summarization**: More accurate extraction of key points and decisions
+- **Natural Language**: Output reads more naturally compared to keyword-based extraction
+- **Adaptive Processing**: Handles various meeting styles and formats effectively
+
+### Costs and Considerations
+
+- **AWS Charges**: Using Bedrock incurs AWS charges based on model usage
+- **Processing Time**: AI generation takes longer than traditional processing
+- **Network Required**: Requires internet connection to AWS Bedrock service
+- **Token Limits**: Large meetings may need to be processed in chunks
+
+### Troubleshooting
+
+Common issues and solutions:
+
+```bash
+# Check AWS credentials
+aws sts get-caller-identity
+
+# Verify Bedrock access in your region
+aws bedrock list-foundation-models --region us-east-1
+
+# Test with verbose output for debugging
+uv run python -m vtt2minutes meeting.vtt --use-bedrock --verbose
+```
+
+**Error Messages:**
+- `Missing environment variables`: Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+- `Bedrock is not available in region`: Use a supported region like us-east-1
+- `Invalid credentials`: Check your AWS access keys and permissions
+
 ## Development
 
 ### Running Tests
@@ -222,6 +333,8 @@ src/vtt2minutes/
 ├── parser.py            # VTT file parsing
 ├── preprocessor.py      # Text preprocessing
 ├── summarizer.py        # Meeting minutes generation
+├── intermediate.py      # Intermediate file output
+├── bedrock.py           # Amazon Bedrock integration
 └── cli.py              # Command-line interface
 ```
 
@@ -230,14 +343,18 @@ src/vtt2minutes/
 - **VTTParser**: WebVTT file parsing and VTTCue object generation
 - **TextPreprocessor**: Filler word removal, duplicate elimination, text cleaning
 - **MeetingSummarizer**: Meeting minutes structure generation and Markdown output
+- **IntermediateTranscriptWriter**: Preprocessed transcript output in Markdown format
+- **BedrockMeetingMinutesGenerator**: AI-powered meeting minutes using Amazon Bedrock
 
 ## Technical Specifications
 
 - **Python**: 3.12 or higher
-- **Dependencies**: Click (CLI), Rich (UI), standard library only otherwise
+- **Dependencies**: Click (CLI), Rich (UI), boto3 (AWS SDK), standard library otherwise
 - **Input Format**: WebVTT (.vtt)
 - **Output Format**: Markdown (.md)
+- **Intermediate Format**: Structured Markdown (.md)
 - **Character Encoding**: UTF-8
+- **Cloud Integration**: Amazon Bedrock (optional)
 
 ## License
 
@@ -262,6 +379,9 @@ For detailed development guidelines, see `CLAUDE.md`.
 - **Multilingual Support**: Handle Japanese and English meetings seamlessly
 - **Quality Improvement**: Clean up automatic transcription artifacts for better readability
 - **Time Saving**: Automate the manual process of creating structured meeting notes
+- **AI-Enhanced Processing**: Generate intelligent, context-aware meeting minutes using Amazon Bedrock
+- **Hybrid Workflows**: Combine traditional preprocessing with AI-powered summarization
+- **Enterprise Integration**: Scale meeting documentation with cloud-based AI services
 
 ## Limitations
 

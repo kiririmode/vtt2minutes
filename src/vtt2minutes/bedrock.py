@@ -1,0 +1,305 @@
+"""Amazon Bedrock integration for AI-powered meeting minutes generation."""
+
+import json
+import os
+from typing import Any
+
+import boto3  # type: ignore[import-untyped]
+from botocore.exceptions import (  # type: ignore[import-untyped]
+    BotoCoreError,
+    ClientError,
+)
+
+
+class BedrockMeetingMinutesGenerator:
+    """Generate meeting minutes using Amazon Bedrock."""
+
+    def __init__(
+        self,
+        aws_access_key_id: str | None = None,
+        aws_secret_access_key: str | None = None,
+        aws_session_token: str | None = None,
+        region_name: str = "us-east-1",
+        model_id: str = "anthropic.claude-3-haiku-20240307-v1:0",
+        validate_access: bool = False,
+    ) -> None:
+        """Initialize the Bedrock client.
+
+        Args:
+            aws_access_key_id: AWS access key ID (defaults to env var)
+            aws_secret_access_key: AWS secret access key (defaults to env var)
+            aws_session_token: AWS session token (defaults to env var)
+            region_name: AWS region name
+            model_id: Bedrock model ID to use
+            validate_access: Whether to validate access during initialization
+        """
+        self.model_id = model_id
+        self.region_name = region_name
+
+        # Get AWS credentials from environment variables if not provided
+        self.aws_access_key_id = aws_access_key_id or os.getenv("AWS_ACCESS_KEY_ID")
+        self.aws_secret_access_key = aws_secret_access_key or os.getenv(
+            "AWS_SECRET_ACCESS_KEY"
+        )
+        self.aws_session_token = aws_session_token or os.getenv("AWS_SESSION_TOKEN")
+
+        # Validate credentials
+        if not self.aws_access_key_id or not self.aws_secret_access_key:
+            missing_vars: list[str] = []
+            if not self.aws_access_key_id:
+                missing_vars.append("AWS_ACCESS_KEY_ID")
+            if not self.aws_secret_access_key:
+                missing_vars.append("AWS_SECRET_ACCESS_KEY")
+
+            raise ValueError(
+                f"AWS credentials not found. Missing environment variables: "
+                f"{', '.join(missing_vars)}. Please set these variables or provide "
+                f"them directly to the constructor."
+            )
+
+        # Initialize Bedrock client
+        try:
+            self.bedrock_client = boto3.client(  # type: ignore[assignment]
+                "bedrock-runtime",
+                aws_access_key_id=self.aws_access_key_id,
+                aws_secret_access_key=self.aws_secret_access_key,
+                aws_session_token=self.aws_session_token,
+                region_name=self.region_name,
+            )
+            # Validate credentials and region by attempting to list models
+            if validate_access:
+                self._validate_bedrock_access()
+        except Exception as e:
+            raise ValueError(f"Failed to initialize Bedrock client: {e}") from e
+
+    def generate_minutes_from_markdown(
+        self,
+        markdown_content: str,
+        title: str = "会議議事録",
+        language: str = "japanese",
+    ) -> str:
+        """Generate meeting minutes from preprocessed Markdown content.
+
+        Args:
+            markdown_content: Preprocessed transcript in Markdown format
+            title: Title for the meeting minutes
+            language: Language for the output ("japanese" or "english")
+
+        Returns:
+            Generated meeting minutes in Markdown format
+
+        Raises:
+            BedrockError: If the API call fails
+        """
+        prompt = self._create_prompt(markdown_content, title, language)
+
+        try:
+            response = self._invoke_model(prompt)
+            return self._extract_response_text(response)
+        except (ClientError, BotoCoreError) as e:
+            raise BedrockError(f"Bedrock API call failed: {e}") from e
+        except Exception as e:
+            raise BedrockError(
+                f"Unexpected error during minutes generation: {e}"
+            ) from e
+
+    def _validate_bedrock_access(self) -> None:
+        """Validate that we can access Bedrock with the provided credentials.
+
+        Raises:
+            BedrockError: If credentials or region are invalid
+        """
+        try:
+            # Try to get foundation models to validate access
+            bedrock_client = boto3.client(  # type: ignore[assignment]
+                "bedrock",
+                aws_access_key_id=self.aws_access_key_id,
+                aws_secret_access_key=self.aws_secret_access_key,
+                aws_session_token=self.aws_session_token,
+                region_name=self.region_name,
+            )
+            bedrock_client.list_foundation_models()  # type: ignore[misc]
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "Unknown")  # type: ignore[misc]
+            if error_code == "UnauthorizedOperation":
+                raise BedrockError(
+                    "AWS credentials are invalid or lack Bedrock permissions. "
+                    "Please check your AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY."
+                ) from e
+            elif error_code == "InvalidRequestException":
+                raise BedrockError(
+                    f"Bedrock is not available in region '{self.region_name}'. "
+                    f"Please use a supported region."
+                ) from e
+            else:
+                raise BedrockError(f"AWS API error: {error_code}") from e
+        except BotoCoreError as e:
+            raise BedrockError(f"AWS connection error: {e}") from e
+
+    def _create_prompt(self, markdown_content: str, title: str, language: str) -> str:
+        """Create a prompt for meeting minutes generation.
+
+        Args:
+            markdown_content: Preprocessed transcript content
+            title: Meeting title
+            language: Target language
+
+        Returns:
+            Formatted prompt string
+        """
+        if language.lower() == "japanese":
+            return (
+                f"以下の前処理済み会議記録から、構造化された議事録を作成してください。\n\n"
+                f"要件:\n"
+                f"1. 議題、決定事項、アクションアイテムを明確に抽出する\n"
+                f"2. 発言者の意図を正確に反映する\n"
+                f"3. 時系列順に整理する\n"
+                f"4. 重要なポイントを強調する\n"
+                f"5. Markdown形式で出力する\n\n"
+                f"タイトル: {title}\n\n"
+                f"前処理済み会議記録:\n{markdown_content}\n\n"
+                f"以下の構造で議事録を作成してください:\n"
+                f"- # タイトル\n"
+                f"- ## 会議概要 (日時、参加者、目的)\n"
+                f"- ## 主要な議題\n"
+                f"- ## 決定事項\n"
+                f"- ## アクションアイテム\n"
+                f"- ## 次回までの課題\n"
+                f"- ## 詳細な議論内容\n\n"
+                f"議事録:"
+            )
+        else:
+            return (
+                f"Please create structured meeting minutes from the following "
+                f"preprocessed transcript.\n\n"
+                f"Requirements:\n"
+                f"1. Clearly extract agenda items, decisions, and action items\n"
+                f"2. Accurately reflect speakers' intentions\n"
+                f"3. Organize chronologically\n"
+                f"4. Highlight important points\n"
+                f"5. Output in Markdown format\n\n"
+                f"Title: {title}\n\n"
+                f"Preprocessed Meeting Transcript:\n{markdown_content}\n\n"
+                f"Please create meeting minutes with the following structure:\n"
+                f"- # Title\n"
+                f"- ## Meeting Overview (date, participants, purpose)\n"
+                f"- ## Key Agenda Items\n"
+                f"- ## Decisions Made\n"
+                f"- ## Action Items\n"
+                f"- ## Tasks for Next Meeting\n"
+                f"- ## Detailed Discussion\n\n"
+                f"Meeting Minutes:"
+            )
+
+    def _invoke_model(self, prompt: str) -> dict[str, Any]:
+        """Invoke the Bedrock model with the given prompt.
+
+        Args:
+            prompt: The prompt to send to the model
+
+        Returns:
+            Model response dictionary
+
+        Raises:
+            ClientError: If the API call fails
+        """
+        # Prepare the request body based on the model
+        if "claude" in self.model_id.lower():
+            body = json.dumps(
+                {
+                    "anthropic_version": "bedrock-2023-05-31",
+                    "max_tokens": 4000,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.3,
+                    "top_p": 0.9,
+                }
+            )
+        else:
+            # Default format for other models
+            body = json.dumps(
+                {
+                    "inputText": prompt,
+                    "textGenerationConfig": {
+                        "maxTokenCount": 4000,
+                        "stopSequences": [],
+                        "temperature": 0.3,
+                        "topP": 0.9,
+                    },
+                }
+            )
+
+        response = self.bedrock_client.invoke_model(  # type: ignore[misc]
+            modelId=self.model_id,
+            contentType="application/json",
+            accept="application/json",
+            body=body,
+        )
+
+        return response  # type: ignore[return-value]
+
+    def _extract_response_text(self, response: dict[str, Any]) -> str:
+        """Extract text from the model response.
+
+        Args:
+            response: Bedrock model response
+
+        Returns:
+            Generated text content
+
+        Raises:
+            BedrockError: If response parsing fails
+        """
+        try:
+            response_body = json.loads(response["body"].read())
+
+            # Handle Claude models
+            if "claude" in self.model_id.lower():
+                if response_body.get("content"):
+                    return response_body["content"][0]["text"]
+                else:
+                    raise BedrockError("No content found in Claude response")
+
+            # Handle other models (Titan, etc.)
+            elif "results" in response_body:
+                return response_body["results"][0]["outputText"]
+            elif "outputText" in response_body:
+                return response_body["outputText"]
+            else:
+                raise BedrockError(f"Unknown response format: {response_body}")
+
+        except (json.JSONDecodeError, KeyError, IndexError) as e:
+            raise BedrockError(f"Failed to parse Bedrock response: {e}") from e
+
+    def get_available_models(self) -> list[str]:
+        """Get list of available Bedrock models.
+
+        Returns:
+            List of available model IDs
+
+        Raises:
+            BedrockError: If the API call fails
+        """
+        try:
+            bedrock_client = boto3.client(  # type: ignore[assignment]
+                "bedrock",
+                aws_access_key_id=self.aws_access_key_id,
+                aws_secret_access_key=self.aws_secret_access_key,
+                aws_session_token=self.aws_session_token,
+                region_name=self.region_name,
+            )
+
+            response = bedrock_client.list_foundation_models()  # type: ignore[misc]
+            return [
+                model["modelId"]  # type: ignore[misc]
+                for model in response.get("modelSummaries", [])  # type: ignore[misc]
+                if model.get("responseStreamingSupported", False)  # type: ignore[misc]
+            ]
+
+        except (ClientError, BotoCoreError) as e:
+            raise BedrockError(f"Failed to list Bedrock models: {e}") from e
+
+
+class BedrockError(Exception):
+    """Custom exception for Bedrock-related errors."""
+
+    pass
