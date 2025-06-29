@@ -5,7 +5,7 @@ from tempfile import NamedTemporaryFile
 from unittest.mock import Mock, patch
 
 import pytest
-from src.vtt2minutes.bedrock import BedrockError, BedrockMeetingMinutesGenerator
+from vtt2minutes.bedrock import BedrockError, BedrockMeetingMinutesGenerator
 
 
 class TestPromptTemplateFeature:

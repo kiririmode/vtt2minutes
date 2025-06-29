@@ -154,7 +154,7 @@ class PreprocessingConfig:
         if not file_path.exists():
             raise FileNotFoundError(f"Replacement rules file not found: {file_path}")
 
-        replacement_rules = {}
+        replacement_rules: dict[str, str] = {}
         try:
             with file_path.open(encoding="utf-8") as f:
                 for line_num, line in enumerate(f, 1):

@@ -384,14 +384,12 @@ class BedrockMeetingMinutesGenerator:
 
             bedrock_client = boto3.client("bedrock", **client_kwargs)  # type: ignore[assignment]
 
-            # type: ignore[misc]
-            response = bedrock_client.list_foundation_models()
+            response: dict[str, Any] = bedrock_client.list_foundation_models()  # type: ignore[misc]
+            model_summaries: list[dict[str, Any]] = response.get("modelSummaries", [])  # type: ignore[misc]
             return [
-                model["modelId"]  # type: ignore[misc]
-                # type: ignore[misc]
-                for model in response.get("modelSummaries", [])
-                # type: ignore[misc]
-                if model.get("responseStreamingSupported", False)
+                str(model["modelId"])  # type: ignore[misc]
+                for model in model_summaries  # type: ignore[misc]
+                if bool(model.get("responseStreamingSupported", False))  # type: ignore[misc]
             ]
 
         except (ClientError, BotoCoreError) as e:
