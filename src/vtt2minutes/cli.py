@@ -87,6 +87,13 @@ console = Console()
     type=click.Path(exists=True, path_type=Path),
     help="Path to custom prompt template file",
 )
+@click.option(
+    "--chat-prompt-file",
+    type=click.Path(path_type=Path),
+    help=(
+        "Output chat prompt to file for use with ChatGPT-like services (skips Bedrock)"
+    ),
+)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--stats", is_flag=True, help="Show preprocessing statistics")
 def main(
@@ -104,16 +111,18 @@ def main(
     bedrock_region: str,
     intermediate_file: Path | None,
     prompt_template: Path | None,
+    chat_prompt_file: Path | None,
     verbose: bool,
     stats: bool,
 ) -> None:
     """Convert Microsoft Teams VTT transcripts to AI-powered meeting minutes.
 
     This tool processes VTT (WebVTT) transcript files from Microsoft Teams
-    and generates AI-powered meeting minutes using Amazon Bedrock.
+    and generates AI-powered meeting minutes using Amazon Bedrock, or outputs
+    a chat prompt file for use with external AI services like ChatGPT.
 
-    You must specify either --bedrock-model or --bedrock-inference-profile-id,
-    but not both.
+    For Bedrock usage, you must specify either --bedrock-model or
+    --bedrock-inference-profile-id, but not both.
 
     Example usage:
 
@@ -122,6 +131,8 @@ def main(
         vtt2minutes meeting.vtt -o minutes.md -t "Project Planning Meeting"
 
         vtt2minutes meeting.vtt --bedrock-model anthropic.claude-3-sonnet-20241022-v2:0
+
+        vtt2minutes meeting.vtt --chat-prompt-file prompt.txt
     """
     try:
         # Determine output file path
@@ -239,6 +250,66 @@ def main(
                 progress.stop()
                 console.print(f"[red]中間ファイルの保存に失敗しました: {e}[/red]")
                 sys.exit(1)
+
+            # Step 2.6: Output chat prompt file if requested (skips Bedrock)
+            if chat_prompt_file:
+                task_chat = progress.add_task(
+                    "チャットプロンプトファイルを生成中...", total=None
+                )
+                try:
+                    # Create a temporary Bedrock generator to get the prompt
+                    bedrock_generator = BedrockMeetingMinutesGenerator(
+                        region_name=bedrock_region,
+                        model_id="anthropic.claude-3-5-sonnet-20241022-v2:0",
+                        prompt_template_file=prompt_template,
+                    )
+
+                    # Read intermediate file content
+                    intermediate_content = intermediate_path.read_text(encoding="utf-8")
+
+                    # Generate the prompt
+                    meeting_title = title or "会議議事録"
+                    chat_prompt = bedrock_generator.create_chat_prompt(
+                        intermediate_content, meeting_title
+                    )
+
+                    # Write chat prompt file
+                    chat_prompt_file.write_text(chat_prompt, encoding="utf-8")
+                    progress.update(
+                        task_chat, description="✓ チャットプロンプトファイル生成完了"
+                    )
+
+                    if verbose:
+                        console.print(f"チャットプロンプトファイル: {chat_prompt_file}")
+                        console.print()
+
+                    # Skip Bedrock processing and go to completion message
+                    progress.stop()
+                    console.print(
+                        Panel.fit(
+                            Text(
+                                "チャットプロンプトファイルが正常に生成されました",
+                                style="bold green",
+                            ),
+                            style="green",
+                        )
+                    )
+                    console.print(
+                        f"[green]チャットプロンプトファイル: {chat_prompt_file}[/green]"
+                    )
+                    console.print(
+                        "[yellow]このファイルをChatGPTなどのチャット型AIサービスに"
+                        "コピー&ペーストしてください。[/yellow]"
+                    )
+                    return
+
+                except Exception as e:
+                    progress.stop()
+                    console.print(
+                        "[red]チャットプロンプトファイルの生成に失敗しました: "
+                        f"{e}[/red]"
+                    )
+                    sys.exit(1)
 
             # Step 3: Generate AI-powered meeting minutes using Bedrock
             task3 = progress.add_task("AI議事録を生成中...", total=None)

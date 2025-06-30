@@ -118,6 +118,23 @@ class BedrockMeetingMinutesGenerator:
                 f"Unexpected error during minutes generation: {e}"
             ) from e
 
+    def create_chat_prompt(
+        self, markdown_content: str, title: str = "会議議事録"
+    ) -> str:
+        """Create a chat prompt for external AI services like ChatGPT.
+
+        Args:
+            markdown_content: Preprocessed transcript in Markdown format
+            title: Title for the meeting minutes
+
+        Returns:
+            Formatted prompt string for chat services
+
+        Raises:
+            BedrockError: If prompt creation fails
+        """
+        return self._create_prompt(markdown_content, title)
+
     def _validate_bedrock_access(self) -> None:
         """Validate that we can access Bedrock with the current credentials.
 

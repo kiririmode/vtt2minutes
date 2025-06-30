@@ -132,7 +132,28 @@ vtt2minutes meeting.vtt --intermediate-file processed_transcript.md
 
 # カスタムプロンプトテンプレートを使用
 vtt2minutes meeting.vtt --prompt-template custom_template.txt
+
+# ChatGPT用プロンプトファイルを生成（Bedrockを使わない）
+vtt2minutes meeting.vtt --chat-prompt-file prompt.txt
 ```
+
+### ChatGPT等のチャット型AIサービス向け機能
+
+Amazon Bedrockが利用できない環境でも、ChatGPTやClaude、Geminiなどのチャット型AIサービスで議事録を生成できます：
+
+```bash
+# プロンプトファイルを生成
+vtt2minutes meeting.vtt --chat-prompt-file chatgpt_prompt.txt
+
+# 生成されたファイルの内容をChatGPTにコピー&ペースト
+cat chatgpt_prompt.txt
+```
+
+この機能により：
+- **AWS認証不要**: Amazon Bedrockの設定が不要
+- **柔軟なAI選択**: ChatGPT、Claude、Geminiなど好みのAIサービスを選択可能
+- **簡単操作**: 生成されたプロンプトをコピー&ペーストするだけ
+- **同じ品質**: Bedrockと同じプロンプトテンプレートを使用
 
 ## 設定ファイル
 
