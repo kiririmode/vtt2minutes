@@ -136,32 +136,55 @@ jobs:
     - name: Create release notes
       id: release_notes
       run: |
-        # Generate release notes
+        # Generate Japanese release notes
         echo "## VTT2Minutes ${{ steps.version.outputs.tag }}" > release_notes.md
         echo "" >> release_notes.md
-        echo "Standalone binaries for Linux and Windows." >> release_notes.md
+        echo "Microsoft Teams の VTT 形式議事録ファイルから、Amazon Bedrock を活用して AI による議事録を自動生成する日本語専用ツールです。" >> release_notes.md
         echo "" >> release_notes.md
-        echo "### Downloads" >> release_notes.md
+        echo "### 主な特徴" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "- **日本語特化**: 日本語のフィラーワードと句読点処理に最適化" >> release_notes.md
+        echo "- **AI 議事録生成**: Claude Sonnet 4 対応の高品質な議事録生成" >> release_notes.md
+        echo "- **推論プロファイル対応**: Bedrock Cross-Region Inference でコスト最適化" >> release_notes.md
+        echo "- **カスタムテンプレート**: 詳細な議事録フォーマットをデフォルト提供" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### ダウンロード" >> release_notes.md
         echo "" >> release_notes.md
         echo "- **Linux (x86_64)**: \`vtt2minutes-linux-x86_64.tar.gz\`" >> release_notes.md
         echo "- **Windows (x86_64)**: \`vtt2minutes-windows-x86_64.zip\`" >> release_notes.md
         echo "" >> release_notes.md
-        echo "### Usage" >> release_notes.md
+        echo "### 使用方法" >> release_notes.md
         echo "" >> release_notes.md
         echo "\`\`\`bash" >> release_notes.md
         echo "# Linux" >> release_notes.md
         echo "tar -xzf vtt2minutes-linux-x86_64.tar.gz" >> release_notes.md
-        echo "./vtt2minutes --help" >> release_notes.md
+        echo "./vtt2minutes meeting.vtt -t \"プロジェクト企画会議\"" >> release_notes.md
         echo "" >> release_notes.md
-        echo "# Windows" >> release_notes.md
-        echo "# Extract vtt2minutes-windows-x86_64.zip" >> release_notes.md
-        echo "vtt2minutes.exe --help" >> release_notes.md
+        echo "# Windows (PowerShell)" >> release_notes.md
+        echo "Expand-Archive vtt2minutes-windows-x86_64.zip" >> release_notes.md
+        echo "vtt2minutes.exe meeting.vtt -t \"プロジェクト企画会議\"" >> release_notes.md
         echo "\`\`\`" >> release_notes.md
         echo "" >> release_notes.md
-        echo "### Requirements" >> release_notes.md
+        echo "### 推奨モデル設定" >> release_notes.md
         echo "" >> release_notes.md
-        echo "- AWS credentials configured for Amazon Bedrock access" >> release_notes.md
-        echo "- Internet connection for AI-powered meeting minutes generation" >> release_notes.md
+        echo "\`\`\`bash" >> release_notes.md
+        echo "# Claude Sonnet 4（最高品質）" >> release_notes.md
+        echo "vtt2minutes meeting.vtt --bedrock-model anthropic.claude-sonnet-4-20250514" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "# 推論プロファイル（コスト最適化）" >> release_notes.md
+        echo "vtt2minutes meeting.vtt --bedrock-inference-profile-id apac-claude-sonnet-4" >> release_notes.md
+        echo "\`\`\`" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### 必要な環境" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "- Amazon Bedrock アクセス権限を持つ AWS アカウント" >> release_notes.md
+        echo "- 設定済み AWS 認証情報（環境変数または AWS CLI プロファイル）" >> release_notes.md
+        echo "- インターネット接続" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### サポート" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "- **ドキュメント**: [README.md](https://github.com/kiririmode/vtt2minutes/blob/main/README.md)" >> release_notes.md
+        echo "- **バグレポート**: [Issues](https://github.com/kiririmode/vtt2minutes/issues)" >> release_notes.md
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2

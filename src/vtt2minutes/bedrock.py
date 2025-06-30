@@ -1,6 +1,7 @@
 """Amazon Bedrock integration for AI-powered meeting minutes generation."""
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -182,9 +183,16 @@ class BedrockMeetingMinutesGenerator:
                 ) from e
 
         # Try to use default template file from prompt_templates/default.txt
-        default_template_path = (
-            Path(__file__).parent.parent.parent / "prompt_templates" / "default.txt"
-        )
+        # Handle PyInstaller bundled files
+        if getattr(sys, "frozen", False):
+            # Running in a PyInstaller bundle
+            bundle_dir = Path(getattr(sys, "_MEIPASS", ""))
+            default_template_path = bundle_dir / "prompt_templates" / "default.txt"
+        else:
+            # Running in normal Python environment
+            default_template_path = (
+                Path(__file__).parent.parent.parent / "prompt_templates" / "default.txt"
+            )
         if default_template_path.exists():
             try:
                 template_content = default_template_path.read_text(encoding="utf-8")
