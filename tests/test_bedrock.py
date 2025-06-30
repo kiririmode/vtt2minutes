@@ -1,6 +1,7 @@
 """Tests for Amazon Bedrock integration."""
 
 import json
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -53,8 +54,6 @@ class TestBedrockMeetingMinutesGenerator:
 
     def test_init_with_custom_template_file(self) -> None:
         """Test initialization with custom template file."""
-        from pathlib import Path
-
         template_path = Path("/custom/template.txt")
         generator = BedrockMeetingMinutesGenerator(prompt_template_file=template_path)
 
@@ -124,6 +123,74 @@ class TestBedrockMeetingMinutesGenerator:
             "# Test Content\nSpeaker: Hello", "Test Meeting"
         )
 
+        assert "以下をセクションとする議事録を作成してください" in prompt
+        assert "Test Meeting" in prompt
+        assert "Test Content" in prompt
+
+    def test_create_chat_prompt_default_title(self) -> None:
+        """Test chat prompt creation with default title."""
+        generator = BedrockMeetingMinutesGenerator(
+            aws_access_key_id="test_key",
+            aws_secret_access_key="test_secret",
+        )
+
+        markdown_content = "# Test Content\nSpeaker: Hello"
+        prompt = generator.create_chat_prompt(markdown_content)
+
+        assert "以下をセクションとする議事録を作成してください" in prompt
+        assert "会議議事録" in prompt  # Default title
+        assert "Test Content" in prompt
+
+    def test_create_chat_prompt_custom_title(self) -> None:
+        """Test chat prompt creation with custom title."""
+        generator = BedrockMeetingMinutesGenerator(
+            aws_access_key_id="test_key",
+            aws_secret_access_key="test_secret",
+        )
+
+        markdown_content = "# Test Content\nSpeaker: Hello"
+        prompt = generator.create_chat_prompt(markdown_content, "Custom Meeting Title")
+
+        assert "以下をセクションとする議事録を作成してください" in prompt
+        assert "Custom Meeting Title" in prompt
+        assert "Test Content" in prompt
+
+    def test_create_chat_prompt_with_custom_template(self, tmp_path: Path) -> None:
+        """Test chat prompt creation with custom template file."""
+        # Create a custom template file
+        template_file = tmp_path / "custom_template.txt"
+        template_content = (
+            "カスタムテンプレート: {title}\n内容: {markdown_content}\n以上です。"
+        )
+        template_file.write_text(template_content, encoding="utf-8")
+
+        generator = BedrockMeetingMinutesGenerator(
+            aws_access_key_id="test_key",
+            aws_secret_access_key="test_secret",
+            prompt_template_file=template_file,
+        )
+
+        markdown_content = "# Test Content\nSpeaker: Hello"
+        prompt = generator.create_chat_prompt(markdown_content, "Test Meeting")
+
+        assert "カスタムテンプレート: Test Meeting" in prompt
+        assert "内容: # Test Content\nSpeaker: Hello" in prompt
+        assert "以上です。" in prompt
+
+    def test_create_chat_prompt_template_file_not_found(self, tmp_path: Path) -> None:
+        """Test chat prompt creation when template file doesn't exist."""
+        non_existent_file = tmp_path / "nonexistent.txt"
+
+        generator = BedrockMeetingMinutesGenerator(
+            aws_access_key_id="test_key",
+            aws_secret_access_key="test_secret",
+            prompt_template_file=non_existent_file,
+        )
+
+        markdown_content = "# Test Content\nSpeaker: Hello"
+        prompt = generator.create_chat_prompt(markdown_content, "Test Meeting")
+
+        # Should fall back to default template
         assert "以下をセクションとする議事録を作成してください" in prompt
         assert "Test Meeting" in prompt
         assert "Test Content" in prompt
@@ -295,7 +362,7 @@ class TestBedrockMeetingMinutesGenerator:
         mock_runtime_client = Mock()
         mock_bedrock_client = Mock()
 
-        def client_side_effect(service_name: str, **kwargs: str) -> Mock:
+        def client_side_effect(service_name: str, **_kwargs: str) -> Mock:
             if service_name == "bedrock-runtime":
                 return mock_runtime_client
             elif service_name == "bedrock":
@@ -342,7 +409,7 @@ class TestBedrockMeetingMinutesGenerator:
         mock_runtime_client = Mock()
         mock_bedrock_client = Mock()
 
-        def client_side_effect(service_name: str, **kwargs: str) -> Mock:
+        def client_side_effect(service_name: str, **_kwargs: str) -> Mock:
             if service_name == "bedrock-runtime":
                 return mock_runtime_client
             elif service_name == "bedrock":
