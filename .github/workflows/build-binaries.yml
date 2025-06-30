@@ -8,6 +8,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+  packages: write
+
 env:
   FORCE_COLOR: 0
   NO_COLOR: 1
