@@ -1,5 +1,8 @@
 # VTT2Minutes
 
+[![CI](https://github.com/kiririmode/vtt2minutes/workflows/CI/badge.svg)](https://github.com/kiririmode/vtt2minutes/actions)
+[![Coverage](https://github.com/kiririmode/vtt2minutes/workflows/Coverage%20Report/badge.svg)](https://github.com/kiririmode/vtt2minutes/actions)
+
 Microsoft Teams の VTT 形式議事録ファイルから、Amazon Bedrock を活用して AI による議事録を自動生成する Python ツールです。
 
 ## 特徴

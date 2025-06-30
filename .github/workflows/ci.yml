@@ -95,7 +95,7 @@ jobs:
       run: |
         echo "::group::Test Execution"
         # Disable pytest plugin autoload to avoid anyio issues if they occur
-        PYTEST_DISABLE_PLUGIN_AUTOLOAD="" uv run pytest --tb=short
+        PYTEST_DISABLE_PLUGIN_AUTOLOAD="" uv run pytest --tb=short --cov=src/vtt2minutes --cov-report=xml --cov-report=html
         echo "::endgroup::"
 
     - name: Upload coverage reports to Codecov
@@ -109,12 +109,15 @@ jobs:
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-    - name: Upload coverage artifact
+    - name: Upload coverage artifacts
       if: matrix.python-version == '3.12'
       uses: actions/upload-artifact@v4
       with:
-        name: coverage-html
-        path: htmlcov/
+        name: coverage-report-${{ github.sha }}
+        path: |
+          coverage.xml
+          htmlcov/
+        retention-days: 30
 
   integration-test:
     name: Integration Test
