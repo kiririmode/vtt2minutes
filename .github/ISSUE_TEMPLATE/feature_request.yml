@@ -1,0 +1,141 @@
+name: 🚀 機能リクエスト
+description: VTT2Minutesに新しい機能を提案してください
+title: "[Feature] "
+labels: ["enhancement"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        VTT2Minutesをご利用いただき、ありがとうございます。
+        新しい機能を提案していただく前に、既存のissueで同様の提案がないかご確認ください。
+
+  - type: textarea
+    id: feature-summary
+    attributes:
+      label: 🚀 機能の概要
+      description: 提案したい機能について簡潔に説明してください
+      placeholder: どのような機能を追加したいですか？
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 💡 提案の動機・背景
+      description: なぜこの機能が必要だと思いますか？どのような問題を解決しますか？
+      placeholder: |
+        現在の課題や、この機能がどのように役立つかを説明してください
+        - 現在困っていること
+        - この機能により期待される改善
+    validations:
+      required: true
+
+  - type: textarea
+    id: detailed-description
+    attributes:
+      label: 📋 詳細な説明
+      description: 提案する機能について詳しく説明してください
+      placeholder: |
+        機能の詳細を説明してください：
+        - どのように動作するべきか
+        - ユーザーインターフェースはどうあるべきか
+        - 設定やオプションは必要か
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: 🎯 使用例・ユースケース
+      description: この機能をどのような場面で使用しますか？
+      placeholder: |
+        具体的な使用例を教えてください：
+        1. ○○のような場面で...
+        2. △△を実現するために...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: 💻 提案する実装方法（任意）
+      description: 技術的な実装方法について案があれば教えてください
+      placeholder: |
+        実装についてのアイデアがあれば：
+        - 新しいコマンドラインオプション
+        - 設定ファイルの拡張
+        - 新しいファイル形式のサポート
+        - プロンプトテンプレートの改良
+    validations:
+      required: false
+
+  - type: dropdown
+    id: feature-category
+    attributes:
+      label: 🏷️ 機能カテゴリ
+      description: この機能はどのカテゴリに属しますか？
+      options:
+        - VTTファイル解析・パース機能
+        - 前処理・テキスト処理機能
+        - AI議事録生成・プロンプト機能
+        - CLI・ユーザーインターフェース
+        - AWS Bedrock統合機能
+        - 出力・エクスポート機能
+        - 設定・カスタマイズ機能
+        - パフォーマンス・最適化
+        - その他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: ⭐ 優先度
+      description: この機能の重要度はどの程度ですか？
+      options:
+        - 必須（現在の機能では業務に支障がある）
+        - 高（あると非常に便利）
+        - 中（あると便利）
+        - 低（あったらいいな程度）
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternative-solutions
+    attributes:
+      label: 🔄 代替案
+      description: この機能以外の解決方法を検討したことがありますか？
+      placeholder: |
+        他に検討した方法があれば教えてください：
+        - 既存機能での回避方法
+        - 他のツールとの組み合わせ
+        - なぜそれらでは不十分なのか
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📝 追加情報
+      description: その他、機能の実装に役立つと思われる情報があれば教えてください
+      placeholder: |
+        - 参考となるツールや実装例
+        - 関連する資料やドキュメント
+        - スクリーンショットやモックアップ
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: ✔️ 確認事項
+      description: 以下の項目を確認してください
+      options:
+        - label: 既存のissueで同様の機能リクエストがないことを確認しました
+          required: true
+        - label: 現在の機能では実現できないことを確認しました
+          required: true
+        - label: 機能の目的と利点を明確に説明しました
+          required: true

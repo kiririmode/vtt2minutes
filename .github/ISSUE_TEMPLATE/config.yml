@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🤔 質問・ディスカッション
+    url: https://github.com/kiririmode/vtt2minutes/discussions
+    about: 使い方の質問や一般的な議論はDiscussionsをご利用ください
+  - name: 📚 ドキュメント
+    url: https://github.com/kiririmode/vtt2minutes/blob/main/README.md
+    about: 使用方法や設定について詳しくはREADMEをご確認ください

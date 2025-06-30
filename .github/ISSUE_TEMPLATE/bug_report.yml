@@ -1,0 +1,130 @@
+name: 🐛 バグ報告
+description: VTT2Minutesで発生したバグや不具合を報告してください
+title: "[Bug] "
+labels: ["bug"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        VTT2Minutesをご利用いただき、ありがとうございます。
+        バグ報告をしていただく前に、既存のissueで同様の問題が報告されていないかご確認ください。
+
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: 🐛 バグの説明
+      description: 発生したバグについて詳しく説明してください
+      placeholder: 何が起こりましたか？期待していた動作と実際の動作の違いを説明してください。
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: 🔄 再現手順
+      description: バグを再現するための手順を詳しく教えてください
+      placeholder: |
+        1. VTTファイルを準備して...
+        2. 次のコマンドを実行して...
+        3. エラーが発生する...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: ✅ 期待される動作
+      description: 本来どのような動作をするべきだと思いますか？
+      placeholder: 期待していた結果を説明してください
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: ❌ 実際の動作
+      description: 実際に何が起こりましたか？
+      placeholder: 実際に起こった結果を説明してください
+    validations:
+      required: true
+
+  - type: textarea
+    id: error-output
+    attributes:
+      label: 📋 エラーメッセージ・ログ
+      description: エラーメッセージやログがあれば貼り付けてください
+      placeholder: |
+        エラーメッセージやスタックトレースをここに貼り付けてください
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: vtt2minutes-version
+    attributes:
+      label: 📦 VTT2Minutesのバージョン
+      description: 使用しているVTT2Minutesのバージョンを教えてください
+      placeholder: "例: v0.1.0-beta3 または uv run vtt2minutes --version の出力"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation-method
+    attributes:
+      label: 💾 インストール方法
+      description: どのようにVTT2Minutesをインストールしましたか？
+      options:
+        - スタンドアロンバイナリ（Linux）
+        - スタンドアロンバイナリ（Windows）
+        - Python環境（uvインストール）
+        - Python環境（その他）
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: 💻 OS・環境
+      description: 使用しているOS、Pythonバージョンなどの環境情報
+      placeholder: "例: Ubuntu 20.04, Python 3.12, Windows 11"
+    validations:
+      required: true
+
+  - type: textarea
+    id: aws-bedrock-info
+    attributes:
+      label: ☁️ AWS Bedrock設定
+      description: 使用しているBedrockモデル、リージョンなどの設定情報（機密情報は含めないでください）
+      placeholder: |
+        - 使用モデル: anthropic.claude-3-5-sonnet-20241022-v2:0
+        - リージョン: ap-northeast-1
+        - 推論プロファイル: なし
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📝 追加情報
+      description: その他、問題の解決に役立つと思われる情報があれば教えてください
+      placeholder: |
+        - VTTファイルのサイズや会議時間
+        - 使用しているプロンプトテンプレート
+        - その他の環境固有の設定
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: ✔️ 確認事項
+      description: 以下の項目を確認してください
+      options:
+        - label: 既存のissueで同様の問題が報告されていないことを確認しました
+          required: true
+        - label: AWS認証情報などの機密情報を含めていないことを確認しました
+          required: true
+        - label: 可能な限り詳細な情報を提供しました
+          required: true
