@@ -1155,7 +1155,7 @@ class TestCLI:
             # Check for general statistics presence
             assert "参加者" in output_text  # Participants info
             assert "会議時間" in output_text  # Meeting time info
-            assert "総単語数" in output_text  # Word count info
+            assert "総文字数" in output_text  # Character count info
             # Check for successful completion
             assert "AI議事録生成が完了しました" in output_text
 

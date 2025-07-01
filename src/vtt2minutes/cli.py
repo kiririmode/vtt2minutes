@@ -243,7 +243,7 @@ def main(
                 if verbose:
                     console.print(f"中間ファイル: {intermediate_path}")
                     console.print(f"発言者数: {len(transcript_stats['speakers'])}名")
-                    console.print(f"総単語数: {transcript_stats['word_count']}語")
+                    console.print(f"総文字数: {transcript_stats['word_count']}文字")
                     console.print()
 
             except Exception as e:
@@ -426,7 +426,7 @@ def main(
             console.print(
                 f"会議時間: {writer.format_duration(summary_stats['duration'])}"
             )
-            console.print(f"総単語数: {summary_stats['word_count']}語")
+            console.print(f"総文字数: {summary_stats['word_count']}文字")
 
     except KeyboardInterrupt:
         console.print("\n[yellow]処理が中断されました。[/yellow]")

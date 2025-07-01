@@ -190,7 +190,7 @@ class TestIntermediateTranscriptWriter:
         assert stats["total_cues"] == 3
         assert stats["speakers"] == ["Alice", "Bob"]  # Sorted
         assert stats["duration"] == 12.0  # end_time - start_time (12.0 - 0.0)
-        assert stats["word_count"] == 21  # Count words in all cues
+        assert stats["word_count"] == 124  # Count characters in all cues
 
     def test_get_statistics_empty(self) -> None:
         """Test statistics with empty cue list."""
@@ -221,7 +221,7 @@ class TestIntermediateTranscriptWriter:
         assert stats["total_cues"] == 1
         assert stats["speakers"] == []  # No speakers
         assert stats["duration"] == 3.0
-        assert stats["word_count"] == 4  # "Hello world test message"
+        assert stats["word_count"] == 24  # "Hello world test message"
 
     def test_format_duration_basic(self) -> None:
         """Test basic duration formatting."""

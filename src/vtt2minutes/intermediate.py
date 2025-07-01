@@ -154,12 +154,12 @@ class IntermediateTranscriptWriter:
             }
 
         speakers: set[str] = set()
-        word_count = 0
+        char_count = 0
 
         for cue in cues:
             if cue.speaker:
                 speakers.add(cue.speaker)
-            word_count += len(cue.text.split())
+            char_count += len(cue.text)
 
         duration = cues[-1].end_seconds - cues[0].start_seconds
 
@@ -167,7 +167,7 @@ class IntermediateTranscriptWriter:
             "total_cues": len(cues),
             "speakers": sorted(speakers),
             "duration": duration,
-            "word_count": word_count,
+            "word_count": char_count,
         }
 
     def format_duration(self, seconds: float) -> str:
