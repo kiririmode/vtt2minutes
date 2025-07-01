@@ -24,6 +24,12 @@ This document contains critical information about working with this codebase. Fo
      - Check with: `uv run lizard src/vtt2minutes --CCN 10`
      - Functions exceeding CCN 10 must be refactored into smaller functions
      - CI automatically monitors complexity and fails builds with CCN > 10
+   - **Code Similarity**: Monitor and reduce code duplication
+     - Check with: `./scripts/check-similarity.sh`
+     - Target: Keep function similarity below 80% for maintainability
+     - Use `./scripts/check-similarity.sh -t 0.8 -p` for detailed analysis
+     - Extract common patterns into shared utility functions
+     - Review functions with >85% similarity for potential refactoring
 
 3. Testing Requirements
    - Framework: `uv run --frozen pytest`

@@ -1,8 +1,9 @@
 """Command-line interface for VTT2Minutes."""
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import click
 from rich.console import Console
@@ -17,6 +18,8 @@ from .preprocessor import PreprocessingConfig, TextPreprocessor
 
 console = Console()
 
+T = TypeVar("T")
+
 
 def _display_header(verbose: bool, input_file: Path, output: Path) -> None:
     """Display application header and file information."""
@@ -30,6 +33,47 @@ def _display_header(verbose: bool, input_file: Path, output: Path) -> None:
         console.print(f"Input file: {input_file}")
         console.print(f"Output file: {output}")
         console.print()
+
+
+def _execute_with_progress[T](
+    progress: Progress,
+    task_description: str,
+    success_description: str,
+    error_message: str,
+    operation: Callable[[], T],
+    verbose: bool = False,
+    verbose_callback: Callable[[], None] | None = None,
+) -> T:
+    """Execute an operation with progress tracking and error handling.
+
+    Args:
+        progress: Progress instance
+        task_description: Description for the task while running
+        success_description: Description when task completes
+        error_message: Error message prefix if operation fails
+        operation: Function to execute
+        verbose: Whether to call verbose callback
+        verbose_callback: Optional callback for verbose output
+
+    Returns:
+        Result of the operation
+
+    Raises:
+        SystemExit: If operation fails
+    """
+    task = progress.add_task(task_description, total=None)
+    try:
+        result = operation()
+        progress.update(task, description=success_description)
+
+        if verbose and verbose_callback:
+            verbose_callback()
+
+        return result
+    except Exception as e:
+        progress.stop()
+        console.print(f"[red]{error_message}: {e}[/red]")
+        sys.exit(1)
 
 
 def _initialize_components(
@@ -56,26 +100,29 @@ def _parse_vtt_file(
     parser: VTTParser, input_file: Path, progress: Progress, verbose: bool
 ) -> list[VTTCue]:
     """Parse VTT file and return cues."""
-    task = progress.add_task("VTTファイルを解析中...", total=None)
-    try:
-        cues = parser.parse_file(input_file)
-        progress.update(task, description="✓ VTTファイル解析完了")
 
-        if verbose:
-            console.print(f"解析されたキュー数: {len(cues)}")
-            if cues:
-                speakers = parser.get_speakers(cues)
-                duration = parser.get_duration(cues)
-                console.print(f"参加者数: {len(speakers)}")
-                console.print(f"会議時間: {duration:.1f}秒")
-                console.print(f"参加者: {', '.join(speakers)}")
-            console.print()
+    def parse_operation() -> list[VTTCue]:
+        return parser.parse_file(input_file)
 
-        return cues
-    except Exception as e:
-        progress.stop()
-        console.print(f"[red]VTTファイルの解析に失敗しました: {e}[/red]")
-        sys.exit(1)
+    cues = _execute_with_progress(
+        progress,
+        "VTTファイルを解析中...",
+        "✓ VTTファイル解析完了",
+        "VTTファイルの解析に失敗しました",
+        parse_operation,
+    )
+
+    if verbose:
+        console.print(f"解析されたキュー数: {len(cues)}")
+        if cues:
+            speakers = parser.get_speakers(cues)
+            duration = parser.get_duration(cues)
+            console.print(f"参加者数: {len(speakers)}")
+            console.print(f"会議時間: {duration:.1f}秒")
+            console.print(f"参加者: {', '.join(speakers)}")
+        console.print()
+
+    return cues
 
 
 def _preprocess_cues(
@@ -90,23 +137,26 @@ def _preprocess_cues(
         return cues
 
     original_count = len(cues)
-    task = progress.add_task("テキストを前処理中...", total=None)
-    try:
-        processed_cues = preprocessor.preprocess_cues(cues)
-        progress.update(task, description="✓ 前処理完了")
 
-        if verbose:
-            console.print(f"前処理後のキュー数: {len(processed_cues)}")
-            removed = original_count - len(processed_cues)
-            if removed > 0:
-                console.print(f"除去されたキュー数: {removed}")
-            console.print()
+    def preprocess_operation() -> list[VTTCue]:
+        return preprocessor.preprocess_cues(cues)
 
-        return processed_cues
-    except Exception as e:
-        progress.stop()
-        console.print(f"[red]前処理に失敗しました: {e}[/red]")
-        sys.exit(1)
+    processed_cues = _execute_with_progress(
+        progress,
+        "テキストを前処理中...",
+        "✓ 前処理完了",
+        "前処理に失敗しました",
+        preprocess_operation,
+    )
+
+    if verbose:
+        console.print(f"前処理後のキュー数: {len(processed_cues)}")
+        removed = original_count - len(processed_cues)
+        if removed > 0:
+            console.print(f"除去されたキュー数: {removed}")
+        console.print()
+
+    return processed_cues
 
 
 def _save_intermediate_file(
@@ -118,8 +168,8 @@ def _save_intermediate_file(
     verbose: bool,
 ) -> Path:
     """Save intermediate markdown file."""
-    task = progress.add_task("中間ファイルを保存中...", total=None)
-    try:
+
+    def save_operation() -> Path:
         intermediate_path = intermediate_file or output.with_suffix(".preprocessed.md")
 
         intermediate_writer = IntermediateTranscriptWriter()
@@ -136,19 +186,25 @@ def _save_intermediate_file(
             cues, intermediate_path, title or "前処理済み会議記録", metadata
         )
 
-        progress.update(task, description="✓ 中間ファイル保存完了")
-
-        if verbose:
-            console.print(f"中間ファイル: {intermediate_path}")
-            console.print(f"発言者数: {len(transcript_stats['speakers'])}名")
-            console.print(f"総文字数: {transcript_stats['word_count']}文字")
-            console.print()
-
         return intermediate_path
-    except Exception as e:
-        progress.stop()
-        console.print(f"[red]中間ファイルの保存に失敗しました: {e}[/red]")
-        sys.exit(1)
+
+    intermediate_path = _execute_with_progress(
+        progress,
+        "中間ファイルを保存中...",
+        "✓ 中間ファイル保存完了",
+        "中間ファイルの保存に失敗しました",
+        save_operation,
+    )
+
+    if verbose:
+        intermediate_writer = IntermediateTranscriptWriter()
+        transcript_stats = intermediate_writer.get_statistics(cues)
+        console.print(f"中間ファイル: {intermediate_path}")
+        console.print(f"発言者数: {len(transcript_stats['speakers'])}名")
+        console.print(f"総文字数: {transcript_stats['word_count']}文字")
+        console.print()
+
+    return intermediate_path
 
 
 def _generate_chat_prompt(
@@ -161,8 +217,8 @@ def _generate_chat_prompt(
     verbose: bool,
 ) -> None:
     """Generate chat prompt file and exit."""
-    task = progress.add_task("チャットプロンプトファイルを生成中...", total=None)
-    try:
+
+    def generate_operation() -> None:
         bedrock_generator = BedrockMeetingMinutesGenerator(
             region_name=bedrock_region,
             model_id="anthropic.claude-3-5-sonnet-20241022-v2:0",
@@ -176,31 +232,34 @@ def _generate_chat_prompt(
         )
 
         chat_prompt_file.write_text(chat_prompt, encoding="utf-8")
-        progress.update(task, description="✓ チャットプロンプトファイル生成完了")
 
-        if verbose:
-            console.print(f"チャットプロンプトファイル: {chat_prompt_file}")
-            console.print()
+    _execute_with_progress(
+        progress,
+        "チャットプロンプトファイルを生成中...",
+        "✓ チャットプロンプトファイル生成完了",
+        "チャットプロンプトファイルの生成に失敗しました",
+        generate_operation,
+    )
 
-        progress.stop()
-        console.print(
-            Panel.fit(
-                Text(
-                    "チャットプロンプトファイルが正常に生成されました",
-                    style="bold green",
-                ),
-                style="green",
-            )
+    if verbose:
+        console.print(f"チャットプロンプトファイル: {chat_prompt_file}")
+        console.print()
+
+    progress.stop()
+    console.print(
+        Panel.fit(
+            Text(
+                "チャットプロンプトファイルが正常に生成されました",
+                style="bold green",
+            ),
+            style="green",
         )
-        console.print(f"[green]チャットプロンプトファイル: {chat_prompt_file}[/green]")
-        console.print(
-            "[yellow]このファイルをChatGPTなどのチャット型AIサービスに"
-            "コピー&ペーストしてください。[/yellow]"
-        )
-    except Exception as e:
-        progress.stop()
-        console.print(f"[red]チャットプロンプトファイルの生成に失敗しました: {e}[/red]")
-        sys.exit(1)
+    )
+    console.print(f"[green]チャットプロンプトファイル: {chat_prompt_file}[/green]")
+    console.print(
+        "[yellow]このファイルをChatGPTなどのチャット型AIサービスに"
+        "コピー&ペーストしてください。[/yellow]"
+    )
 
 
 def _validate_bedrock_config(
@@ -276,14 +335,17 @@ def _generate_bedrock_minutes(
 
 def _save_output_file(output: Path, content: str, progress: Progress) -> None:
     """Save final output file."""
-    task = progress.add_task("ファイルを保存中...", total=None)
-    try:
+
+    def save_operation() -> None:
         output.write_text(content, encoding="utf-8")
-        progress.update(task, description="✓ 保存完了")
-    except Exception as e:
-        progress.stop()
-        console.print(f"[red]ファイルの保存に失敗しました: {e}[/red]")
-        sys.exit(1)
+
+    _execute_with_progress(
+        progress,
+        "ファイルを保存中...",
+        "✓ 保存完了",
+        "ファイルの保存に失敗しました",
+        save_operation,
+    )
 
 
 def _display_statistics(

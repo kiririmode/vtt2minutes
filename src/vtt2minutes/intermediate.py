@@ -64,6 +64,18 @@ class IntermediateTranscriptWriter:
 
         return "\n".join(lines)
 
+    def _add_section_header(self, lines: list[str], text: str, level: int = 1) -> None:
+        """Add a markdown header with specified level to lines.
+
+        Args:
+            lines: List to append header lines to
+            text: Header text
+            level: Header level (1 for #, 2 for ##, etc.)
+        """
+        header_prefix = "#" * level
+        lines.append(f"{header_prefix} {text}")
+        lines.append("")
+
     def _add_markdown_header(self, lines: list[str], title: str) -> None:
         """Add title header to markdown lines.
 
@@ -71,8 +83,7 @@ class IntermediateTranscriptWriter:
             lines: List to append header lines to
             title: Document title
         """
-        lines.append(f"# {title}")
-        lines.append("")
+        self._add_section_header(lines, title, level=1)
 
     def _add_markdown_metadata(
         self, lines: list[str], metadata: dict[str, Any]
@@ -105,8 +116,7 @@ class IntermediateTranscriptWriter:
         Args:
             lines: List to append header lines to
         """
-        lines.append("## 発言記録")
-        lines.append("")
+        self._add_section_header(lines, "発言記録", level=2)
 
     def _process_cues_by_speaker(self, lines: list[str], cues: list[VTTCue]) -> None:
         """Process cues grouped by speaker and add to markdown lines.

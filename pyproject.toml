@@ -174,4 +174,5 @@ output = "coverage.xml"
 [dependency-groups]
 dev = [
     "lizard>=1.17.31",
+    "textdistance>=4.6.3",
 ]
