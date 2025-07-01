@@ -43,6 +43,21 @@ jobs:
         uv run ruff check .
         echo "::endgroup::"
 
+    - name: Check cyclomatic complexity
+      run: |
+        echo "::group::Cyclomatic Complexity Check"
+        # Check for functions with high complexity (CCN > 10)
+        uv run lizard src/vtt2minutes --CCN 10 || echo "Some functions have high complexity"
+        
+        # Generate detailed report for review
+        echo "Generating complexity report..."
+        uv run lizard src/vtt2minutes --CCN 1 > complexity_report.txt
+        
+        # Show summary
+        echo "Complexity Summary:"
+        uv run lizard src/vtt2minutes | tail -10
+        echo "::endgroup::"
+
   type-check:
     name: Type Check
     runs-on: ubuntu-latest

@@ -96,6 +96,17 @@ if ! PYTEST_DISABLE_PLUGIN_AUTOLOAD=\"\" uv run --frozen pytest --tb=short --qui
 fi
 print_status \"All tests passed\"
 
+# 5. Cyclomatic complexity check
+echo \"\"
+echo \"📊 Checking cyclomatic complexity with lizard...\"
+if ! uv run --frozen lizard src/vtt2minutes --CCN 10; then
+    print_error \"Cyclomatic complexity check failed\"
+    echo \"Functions with CCN > 10 found. Please refactor complex functions.\"
+    echo \"Run: uv run lizard src/vtt2minutes --CCN 10\"
+    exit 1
+fi
+print_status \"Complexity check passed\"
+
 # Success message
 echo \"\"
 echo -e \"\${GREEN}🎉 All quality checks passed! Proceeding with commit...\${NC}\"
@@ -118,6 +129,7 @@ echo "  - Code formatting (ruff format)"
 echo "  - Linting (ruff check)"
 echo "  - Type checking (pyright)"
 echo "  - Tests (pytest)"
+echo "  - Cyclomatic complexity (lizard, CCN ≤ 10)"
 echo ""
 echo "To bypass the hook temporarily, use: git commit --no-verify"
 echo ""

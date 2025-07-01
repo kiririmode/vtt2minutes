@@ -43,14 +43,64 @@ class BedrockMeetingMinutesGenerator:
             validate_access: Whether to validate access during initialization
             prompt_template_file: Path to custom prompt template file
         """
-        # Validate that exactly one of model_id or inference_profile_id is provided
+        # Validate input parameters
+        self._validate_model_parameters(model_id, inference_profile_id)
+
+        # Set instance attributes
+        self._set_instance_attributes(
+            model_id,
+            inference_profile_id,
+            region_name,
+            prompt_template_file,
+            aws_access_key_id,
+            aws_secret_access_key,
+            aws_session_token,
+        )
+
+        # Initialize Bedrock client
+        self._initialize_bedrock_client(validate_access)
+
+    def _validate_model_parameters(
+        self, model_id: str | None, inference_profile_id: str | None
+    ) -> None:
+        """Validate model_id and inference_profile_id parameters.
+
+        Args:
+            model_id: Bedrock model ID
+            inference_profile_id: Bedrock inference profile ID
+
+        Raises:
+            ValueError: If both or neither parameters are provided
+        """
         if model_id is not None and inference_profile_id is not None:
             raise ValueError(
                 "Cannot specify both model_id and inference_profile_id. "
                 "Please specify only one."
             )
+
+    def _set_instance_attributes(
+        self,
+        model_id: str | None,
+        inference_profile_id: str | None,
+        region_name: str,
+        prompt_template_file: str | Path | None,
+        aws_access_key_id: str | None,
+        aws_secret_access_key: str | None,
+        aws_session_token: str | None,
+    ) -> None:
+        """Set instance attributes with default values.
+
+        Args:
+            model_id: Bedrock model ID
+            inference_profile_id: Bedrock inference profile ID
+            region_name: AWS region name
+            prompt_template_file: Path to custom prompt template file
+            aws_access_key_id: AWS access key ID
+            aws_secret_access_key: AWS secret access key
+            aws_session_token: AWS session token
+        """
+        # Set model configuration with default
         if model_id is None and inference_profile_id is None:
-            # Default to Claude Sonnet 4 if neither is specified
             model_id = "anthropic.claude-sonnet-4-20250514-v1:0"
 
         self.model_id = model_id
@@ -60,34 +110,49 @@ class BedrockMeetingMinutesGenerator:
             Path(prompt_template_file) if prompt_template_file else None
         )
 
-        # Store provided credentials (may be None to use default credential chain)
+        # Store credentials
         self.aws_access_key_id = aws_access_key_id
         self.aws_secret_access_key = aws_secret_access_key
         self.aws_session_token = aws_session_token
 
-        # Initialize Bedrock client
+    def _initialize_bedrock_client(self, validate_access: bool) -> None:
+        """Initialize the Bedrock client and optionally validate access.
+
+        Args:
+            validate_access: Whether to validate access during initialization
+
+        Raises:
+            ValueError: If client initialization fails
+        """
         try:
-            # Create client configuration
-            client_kwargs = {"region_name": self.region_name}
-
-            # Only add credentials if they are explicitly provided
-            if self.aws_access_key_id and self.aws_secret_access_key:
-                client_kwargs.update(
-                    {
-                        "aws_access_key_id": self.aws_access_key_id,
-                        "aws_secret_access_key": self.aws_secret_access_key,
-                    }
-                )
-                if self.aws_session_token:
-                    client_kwargs["aws_session_token"] = self.aws_session_token
-
+            client_kwargs = self._build_client_kwargs()
             self.bedrock_client = boto3.client("bedrock-runtime", **client_kwargs)  # type: ignore[assignment]
 
-            # Validate credentials and region by attempting to list models
             if validate_access:
                 self._validate_bedrock_access()
         except Exception as e:
             raise ValueError(f"Failed to initialize Bedrock client: {e}") from e
+
+    def _build_client_kwargs(self) -> dict[str, str]:
+        """Build client configuration kwargs.
+
+        Returns:
+            Dictionary of client configuration parameters
+        """
+        client_kwargs = {"region_name": self.region_name}
+
+        # Only add credentials if they are explicitly provided
+        if self.aws_access_key_id and self.aws_secret_access_key:
+            client_kwargs.update(
+                {
+                    "aws_access_key_id": self.aws_access_key_id,
+                    "aws_secret_access_key": self.aws_secret_access_key,
+                }
+            )
+            if self.aws_session_token:
+                client_kwargs["aws_session_token"] = self.aws_session_token
+
+        return client_kwargs
 
     def generate_minutes_from_markdown(
         self,

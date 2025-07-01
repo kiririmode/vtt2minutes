@@ -99,58 +99,138 @@ class VTTParser:
         """
         lines = content.strip().split("\n")
 
-        # Validate VTT format
+        self._validate_vtt_header(lines)
+
+        return self._parse_vtt_lines(lines)
+
+    def _validate_vtt_header(self, lines: list[str]) -> None:
+        """Validate VTT file format.
+
+        Args:
+            lines: Lines from VTT file
+
+        Raises:
+            ValueError: If VTT header is missing or invalid
+        """
         if not lines or not lines[0].strip().startswith("WEBVTT"):
             raise ValueError("Invalid VTT file: missing WEBVTT header")
 
+    def _parse_vtt_lines(self, lines: list[str]) -> list[VTTCue]:
+        """Parse VTT lines into cues.
+
+        Args:
+            lines: Lines from VTT file
+
+        Returns:
+            List of parsed VTT cues
+        """
         cues: list[VTTCue] = []
         i = 1  # Skip WEBVTT header
 
         while i < len(lines):
-            line = lines[i].strip()
-
-            # Skip empty lines and comments
-            if not line or line.startswith("NOTE"):
-                i += 1
-                continue
-
-            # Check for timing line
-            timing_match = self._timing_pattern.match(line)
-            if timing_match:
-                start_time = timing_match.group(1)
-                end_time = timing_match.group(2)
-
-                # Collect text lines until next timing line or end
-                text_lines: list[str] = []
-                i += 1
-
-                while i < len(lines):
-                    text_line = lines[i].strip()
-                    if not text_line:
-                        break
-                    if self._timing_pattern.match(text_line):
-                        # Next cue found, step back
-                        i -= 1
-                        break
-                    text_lines.append(text_line)
-                    i += 1
-
-                if text_lines:
-                    # Join text and extract speaker
-                    full_text = " ".join(text_lines)
-                    speaker, clean_text = self._extract_speaker(full_text)
-
-                    cue = VTTCue(
-                        start_time=start_time,
-                        end_time=end_time,
-                        speaker=speaker,
-                        text=clean_text,
-                    )
-                    cues.append(cue)
-
-            i += 1
+            i = self._process_line(lines, i, cues)
 
         return cues
+
+    def _process_line(self, lines: list[str], i: int, cues: list[VTTCue]) -> int:
+        """Process a single line and update cues list.
+
+        Args:
+            lines: All lines from VTT file
+            i: Current line index
+            cues: List to append parsed cues to
+
+        Returns:
+            Next line index to process
+        """
+        line = lines[i].strip()
+
+        # Skip empty lines and comments
+        if not line or line.startswith("NOTE"):
+            return i + 1
+
+        # Check for timing line
+        timing_match = self._timing_pattern.match(line)
+        if timing_match:
+            return self._process_timing_line(lines, i, timing_match, cues)
+
+        return i + 1
+
+    def _process_timing_line(
+        self, lines: list[str], i: int, timing_match: re.Match[str], cues: list[VTTCue]
+    ) -> int:
+        """Process timing line and create cue.
+
+        Args:
+            lines: All lines from VTT file
+            i: Current line index
+            timing_match: Regex match object for timing
+            cues: List to append parsed cues to
+
+        Returns:
+            Next line index to process
+        """
+        start_time = timing_match.group(1)
+        end_time = timing_match.group(2)
+
+        text_lines, next_i = self._collect_text_lines(lines, i + 1)
+
+        if text_lines:
+            cue = self._create_cue(start_time, end_time, text_lines)
+            cues.append(cue)
+
+        return next_i
+
+    def _collect_text_lines(
+        self, lines: list[str], start_i: int
+    ) -> tuple[list[str], int]:
+        """Collect text lines for a cue.
+
+        Args:
+            lines: All lines from VTT file
+            start_i: Starting line index
+
+        Returns:
+            Tuple of (text_lines, next_index)
+        """
+        text_lines: list[str] = []
+        i = start_i
+
+        while i < len(lines):
+            text_line = lines[i].strip()
+            if not text_line:
+                break
+            if self._timing_pattern.match(text_line):
+                # Next cue found, step back
+                i -= 1
+                break
+            text_lines.append(text_line)
+            i += 1
+
+        return text_lines, i + 1
+
+    def _create_cue(
+        self, start_time: str, end_time: str, text_lines: list[str]
+    ) -> VTTCue:
+        """Create VTTCue from timing and text information.
+
+        Args:
+            start_time: Start time string
+            end_time: End time string
+            text_lines: List of text lines
+
+        Returns:
+            Created VTTCue object
+        """
+        full_text = " ".join(text_lines)
+        speaker, clean_text = self._extract_speaker(full_text)
+
+        return VTTCue(
+            start_time=start_time,
+            end_time=end_time,
+            speaker=speaker,
+            text=clean_text,
+        )
 
     def _extract_speaker(self, text: str) -> tuple[str | None, str]:
         """Extract speaker name from VTT text.

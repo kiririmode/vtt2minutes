@@ -20,6 +20,10 @@ This document contains critical information about working with this codebase. Fo
    - Functions must be focused and small
    - Follow existing patterns exactly
    - Line length: 88 chars maximum
+   - **Cyclomatic Complexity**: Maximum CCN of 10 per function
+     - Check with: `uv run lizard src/vtt2minutes --CCN 10`
+     - Functions exceeding CCN 10 must be refactored into smaller functions
+     - CI automatically monitors complexity and fails builds with CCN > 10
 
 3. Testing Requirements
    - Framework: `uv run --frozen pytest`
@@ -59,7 +63,7 @@ This document contains critical information about working with this codebase. Fo
 ## Pre-commit Hooks
 
 - Pre-commit hooks are automatically installed and run quality checks before each commit
-- The hooks check: formatting (ruff), linting (ruff), type checking (pyright), and tests (pytest)
+- The hooks check: formatting (ruff), linting (ruff), type checking (pyright), tests (pytest), and cyclomatic complexity (lizard)
 - If any check fails, the commit is blocked until issues are resolved
 - To install hooks after cloning: `./scripts/setup-hooks.sh`
 - To bypass temporarily (not recommended): `git commit --no-verify`

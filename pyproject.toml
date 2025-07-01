@@ -170,3 +170,8 @@ directory = "htmlcov"
 
 [tool.coverage.xml]
 output = "coverage.xml"
+
+[dependency-groups]
+dev = [
+    "lizard>=1.17.31",
+]

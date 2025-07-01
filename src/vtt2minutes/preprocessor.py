@@ -309,48 +309,98 @@ class TextPreprocessor:
         if not self.config.filler_words:
             return text
 
-        # Split into segments at punctuation marks, preserving them
+        # Split into segments and process each
         segments = re.split(r"([、。，．！？])", text)
+        result_segments = self._process_segments(segments)
+        result = "".join(result_segments)
+
+        # Clean up and add punctuation
+        result = self._cleanup_and_add_punctuation(result, text)
+        return result
+
+    def _process_segments(self, segments: list[str]) -> list[str]:
+        """Process text segments to remove filler words.
+
+        Args:
+            segments: List of text segments split by punctuation
+
+        Returns:
+            List of processed segments
+        """
         result_segments: list[str] = []
+        punctuation_marks = {"、", "。", "，", "．", "！", "？"}
 
         for segment in segments:
-            if segment in ["、", "。", "，", "．", "！", "？"]:
-                # Keep punctuation as-is
+            if segment in punctuation_marks:
                 result_segments.append(segment)
             else:
-                # Process words in this segment
-                words = segment.split()
-                filtered_words: list[str] = []
+                filtered_segment = self._filter_words_in_segment(segment)
+                if filtered_segment:
+                    result_segments.append(filtered_segment)
 
-                for word in words:
-                    # Remove punctuation for comparison
-                    clean_word = re.sub(r"[^\w]", "", word.lower())
-                    if clean_word not in self.config.filler_words:
-                        filtered_words.append(word)
+        return result_segments
 
-                # Join filtered words without extra spaces
-                if filtered_words:
-                    result_segments.append("".join(filtered_words))
+    def _filter_words_in_segment(self, segment: str) -> str:
+        """Filter filler words from a text segment.
 
-        result = "".join(result_segments)
+        Args:
+            segment: Text segment to process
+
+        Returns:
+            Segment with filler words removed
+        """
+        words = segment.split()
+        filtered_words: list[str] = []
+
+        for word in words:
+            clean_word = re.sub(r"[^\w]", "", word.lower())
+            if (
+                self.config.filler_words is None
+                or clean_word not in self.config.filler_words
+            ):
+                filtered_words.append(word)
+
+        return "".join(filtered_words)
+
+    def _cleanup_and_add_punctuation(self, result: str, original_text: str) -> str:
+        """Clean up result and add appropriate punctuation.
+
+        Args:
+            result: Processed text
+            original_text: Original input text
+
+        Returns:
+            Cleaned text with proper punctuation
+        """
         # Clean up leading punctuation
         result = re.sub(r"^[、，]", "", result)
 
-        # Add back sentence-ending punctuation if original had it and result doesn't
-        if text.endswith(("。", ".", "！", "!", "？", "?")):
-            if not result.endswith(("。", ".", "！", "!", "？", "?")):
-                # Preserve original punctuation type when possible
-                if text.endswith("。"):
-                    result += "。"
-                elif text.endswith("."):
-                    result += "."
-                else:
-                    result += "。"
-        elif text.strip() and not result.endswith(("。", ".", "！", "!", "？", "?")):
-            # Add appropriate punctuation if none exists
+        # Add back sentence-ending punctuation if needed
+        ending_punctuation = ("。", ".", "！", "!", "？", "?")
+
+        if original_text.endswith(ending_punctuation):
+            if not result.endswith(ending_punctuation):
+                result += self._get_appropriate_ending(original_text)
+        elif original_text.strip() and not result.endswith(ending_punctuation):
             result += "。"
 
         return result
+
+    def _get_appropriate_ending(self, text: str) -> str:
+        """Get appropriate sentence ending punctuation.
+
+        Args:
+            text: Original text to check ending
+
+        Returns:
+            Appropriate punctuation mark
+        """
+        if text.endswith("。"):
+            return "。"
+        elif text.endswith("."):
+            return "."
+        else:
+            return "。"
 
     def _fix_transcription_errors(self, text: str) -> str:
         """Fix common transcription errors.

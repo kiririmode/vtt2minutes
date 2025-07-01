@@ -54,26 +54,70 @@ class IntermediateTranscriptWriter:
         """
         lines: list[str] = []
 
-        # Header
+        # Generate header and metadata sections
+        self._add_markdown_header(lines, title)
+        self._add_markdown_metadata(lines, metadata)
+        self._add_content_section_header(lines)
+
+        # Process cues and generate speaker sections
+        self._process_cues_by_speaker(lines, cues)
+
+        return "\n".join(lines)
+
+    def _add_markdown_header(self, lines: list[str], title: str) -> None:
+        """Add title header to markdown lines.
+
+        Args:
+            lines: List to append header lines to
+            title: Document title
+        """
         lines.append(f"# {title}")
         lines.append("")
 
-        # Metadata
+    def _add_markdown_metadata(
+        self, lines: list[str], metadata: dict[str, Any]
+    ) -> None:
+        """Add metadata section to markdown lines.
+
+        Args:
+            lines: List to append metadata lines to
+            metadata: Metadata dictionary
+        """
+        metadata_added = False
+
         if "date" in metadata:
             lines.append(f"**日時:** {metadata['date']}")
+            metadata_added = True
         if "participants" in metadata:
             participants = ", ".join(metadata["participants"])
             lines.append(f"**参加者:** {participants}")
+            metadata_added = True
         if "duration" in metadata:
             lines.append(f"**総時間:** {metadata['duration']}")
-        if any(key in metadata for key in ["date", "participants", "duration"]):
+            metadata_added = True
+
+        if metadata_added:
             lines.append("")
 
-        # Content section
+    def _add_content_section_header(self, lines: list[str]) -> None:
+        """Add content section header to markdown lines.
+
+        Args:
+            lines: List to append header lines to
+        """
         lines.append("## 発言記録")
         lines.append("")
 
-        # Group cues by speaker for better readability
+    def _process_cues_by_speaker(self, lines: list[str], cues: list[VTTCue]) -> None:
+        """Process cues grouped by speaker and add to markdown lines.
+
+        Args:
+            lines: List to append processed sections to
+            cues: List of VTT cues to process
+        """
+        if not cues:
+            return
+
         current_speaker: str | None = object()  # type: ignore[assignment] # Unique sentinel value
         current_section: list[str] = []
         current_start_time = None
@@ -92,13 +136,10 @@ class IntermediateTranscriptWriter:
 
                 # Start new section
                 current_speaker = cue.speaker
-                current_section = []
-                current_start_time = cue.start_time
-
-            if current_section:
-                current_section.append(cue.text)
-            else:
                 current_section = [cue.text]
+                current_start_time = cue.start_time
+            else:
+                current_section.append(cue.text)
 
         # Write final section
         if current_section and current_start_time is not None:
@@ -109,8 +150,6 @@ class IntermediateTranscriptWriter:
                 cues[-1].end_time,
                 current_section,
             )
-
-        return "\n".join(lines)
 
     def _add_speaker_section(
         self,
