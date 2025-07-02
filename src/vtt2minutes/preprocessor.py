@@ -182,9 +182,15 @@ class TextPreprocessor:
             config: Configuration for preprocessing, defaults to PreprocessingConfig()
         """
         self.config = config or PreprocessingConfig()
+        self._error_patterns = self._create_error_patterns()
 
-        # Common transcription error patterns
-        self._error_patterns = {
+    def _create_error_patterns(self) -> dict[str, str]:
+        """Create transcription error patterns.
+
+        Returns:
+            Dictionary mapping error patterns to corrections
+        """
+        return {
             # Repeated characters
             r"(.)\1{3,}": r"\1",
             # Multiple spaces
@@ -252,6 +258,19 @@ class TextPreprocessor:
             text = self._fix_transcription_errors(text)
 
         # Normalize whitespace appropriately for the language
+        text = self._normalize_whitespace(text)
+
+        return self._create_cleaned_cue(cue, text)
+
+    def _normalize_whitespace(self, text: str) -> str:
+        """Normalize whitespace appropriately for the language.
+
+        Args:
+            text: Text to normalize
+
+        Returns:
+            Text with normalized whitespace
+        """
         if re.search(r"[ひらがなカタカナ漢字]", text):
             # For Japanese text, normalize spaces more carefully
             # Remove multiple consecutive spaces but preserve natural breaks
@@ -262,12 +281,56 @@ class TextPreprocessor:
         else:
             # For non-Japanese text, normalize to single spaces
             text = " ".join(text.split())
+        return text
 
+    def _ensure_proper_endings(self, text: str) -> str:
+        """Ensure proper sentence endings.
+
+        Args:
+            text: Text to process
+
+        Returns:
+            Text with proper sentence endings
+        """
+        text = text.strip()
+        if text and not text.endswith((".", "。", "!", "?", "！", "？")):
+            # Add appropriate punctuation based on language
+            if re.search(r"[ひらがなカタカナ漢字]", text):
+                text += "。"
+            else:
+                text += "."
+        return text
+
+    def _remove_extra_punctuation(self, text: str) -> str:
+        """Remove extra punctuation marks.
+
+        Args:
+            text: Text to process
+
+        Returns:
+            Text with extra punctuation removed
+        """
+        text = re.sub(r"[。]{2,}", "。", text)
+        text = re.sub(r"[、]{2,}", "、", text)
+        text = re.sub(r"[.]{2,}", ".", text)
+        text = re.sub(r"[,]{2,}", ",", text)
+        return text
+
+    def _create_cleaned_cue(self, original_cue: VTTCue, cleaned_text: str) -> VTTCue:
+        """Create a new VTTCue with cleaned text.
+
+        Args:
+            original_cue: Original VTTCue
+            cleaned_text: Cleaned text
+
+        Returns:
+            New VTTCue with cleaned text
+        """
         return VTTCue(
-            start_time=cue.start_time,
-            end_time=cue.end_time,
-            speaker=cue.speaker,
-            text=text,
+            start_time=original_cue.start_time,
+            end_time=original_cue.end_time,
+            speaker=original_cue.speaker,
+            text=cleaned_text,
         )
 
     def _apply_word_replacement(self, text: str) -> str:
@@ -279,15 +342,36 @@ class TextPreprocessor:
         Returns:
             Text with words replaced according to replacement rules
         """
-        if not self.config.enable_word_replacement or not self.config.replacement_rules:
+        if not self._should_apply_word_replacement():
             return text
 
-        # Sort by length (longest first) to prevent partial replacement
-        sorted_rules = sorted(
-            self.config.replacement_rules.items(),
-            key=lambda x: len(x[0]),
-            reverse=True,
+        if self.config.replacement_rules:
+            return self._perform_text_replacements(text, self.config.replacement_rules)
+        return text
+
+    def _should_apply_word_replacement(self) -> bool:
+        """Check if word replacement should be applied.
+
+        Returns:
+            True if word replacement should be applied
+        """
+        return (
+            self.config.enable_word_replacement
+            and self.config.replacement_rules is not None
         )
+
+    def _perform_text_replacements(self, text: str, rules: dict[str, str]) -> str:
+        """Perform text replacements using given rules.
+
+        Args:
+            text: Text to process
+            rules: Replacement rules dictionary
+
+        Returns:
+            Text with replacements applied
+        """
+        # Sort by length (longest first) to prevent partial replacement
+        sorted_rules = sorted(rules.items(), key=lambda x: len(x[0]), reverse=True)
 
         result_text = text
         for original, replacement in sorted_rules:
@@ -425,24 +509,31 @@ class TextPreprocessor:
         Returns:
             List of valid cues
         """
-        valid_cues: list[VTTCue] = []
+        return [cue for cue in cues if self._is_valid_cue(cue)]
 
-        for cue in cues:
-            # Check minimum text length
-            if len(cue.text.strip()) < self.config.min_text_length:
-                continue
+    def _is_valid_cue(self, cue: VTTCue) -> bool:
+        """Check if a cue is valid based on configuration.
 
-            # Check minimum duration
-            if cue.duration < self.config.min_duration:
-                continue
+        Args:
+            cue: VTTCue to validate
 
-            # Check for empty or meaningless text
-            if not cue.text.strip() or cue.text.strip() in ["。", "、", ".", ","]:
-                continue
+        Returns:
+            True if cue is valid
+        """
+        # Check minimum text length
+        if len(cue.text.strip()) < self.config.min_text_length:
+            return False
 
-            valid_cues.append(cue)
+        # Check minimum duration
+        if cue.duration < self.config.min_duration:
+            return False
 
-        return valid_cues
+        # Check for empty or meaningless text
+        meaningless_texts = {"。", "、", ".", ","}
+        if not cue.text.strip() or cue.text.strip() in meaningless_texts:
+            return False
+
+        return True
 
     def _remove_duplicates(self, cues: list[VTTCue]) -> list[VTTCue]:
         """Remove duplicate or very similar cues.
@@ -510,30 +601,49 @@ class TextPreprocessor:
         current_cue = cues[0]
 
         for next_cue in cues[1:]:
-            # Check if cues can be merged
-            if (
-                current_cue.speaker == next_cue.speaker
-                and current_cue.speaker is not None
-                and next_cue.start_seconds - current_cue.end_seconds
-                <= self.config.merge_gap_threshold
-            ):
-                # Merge the cues
-                merged_text = f"{current_cue.text} {next_cue.text}".strip()
-                current_cue = VTTCue(
-                    start_time=current_cue.start_time,
-                    end_time=next_cue.end_time,
-                    speaker=current_cue.speaker,
-                    text=merged_text,
-                )
+            if self._can_merge_cues(current_cue, next_cue):
+                current_cue = self._merge_two_cues(current_cue, next_cue)
             else:
-                # Can't merge, add current cue and move to next
                 merged_cues.append(current_cue)
                 current_cue = next_cue
 
-        # Add the last cue
         merged_cues.append(current_cue)
-
         return merged_cues
+
+    def _can_merge_cues(self, current: VTTCue, next_cue: VTTCue) -> bool:
+        """Check if two cues can be merged.
+
+        Args:
+            current: Current cue
+            next_cue: Next cue to potentially merge
+
+        Returns:
+            True if cues can be merged
+        """
+        return (
+            current.speaker == next_cue.speaker
+            and current.speaker is not None
+            and next_cue.start_seconds - current.end_seconds
+            <= self.config.merge_gap_threshold
+        )
+
+    def _merge_two_cues(self, current: VTTCue, next_cue: VTTCue) -> VTTCue:
+        """Merge two cues into one.
+
+        Args:
+            current: Current cue
+            next_cue: Next cue to merge
+
+        Returns:
+            Merged cue
+        """
+        merged_text = f"{current.text} {next_cue.text}".strip()
+        return VTTCue(
+            start_time=current.start_time,
+            end_time=next_cue.end_time,
+            speaker=current.speaker,
+            text=merged_text,
+        )
 
     def _final_cleanup(self, cue: VTTCue) -> VTTCue:
         """Perform final cleanup on a cue.
@@ -547,26 +657,12 @@ class TextPreprocessor:
         text = cue.text
 
         # Remove extra punctuation
-        text = re.sub(r"[。]{2,}", "。", text)
-        text = re.sub(r"[、]{2,}", "、", text)
-        text = re.sub(r"[.]{2,}", ".", text)
-        text = re.sub(r"[,]{2,}", ",", text)
+        text = self._remove_extra_punctuation(text)
 
         # Ensure proper sentence endings
-        text = text.strip()
-        if text and not text.endswith((".", "。", "!", "?", "！", "？")):
-            # Add appropriate punctuation based on language
-            if re.search(r"[ひらがなカタカナ漢字]", text):
-                text += "。"
-            else:
-                text += "."
+        text = self._ensure_proper_endings(text)
 
-        return VTTCue(
-            start_time=cue.start_time,
-            end_time=cue.end_time,
-            speaker=cue.speaker,
-            text=text,
-        )
+        return self._create_cleaned_cue(cue, text)
 
     def get_statistics(
         self, original_cues: list[VTTCue], processed_cues: list[VTTCue]

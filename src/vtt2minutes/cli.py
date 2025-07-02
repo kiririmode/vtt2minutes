@@ -100,29 +100,35 @@ def _parse_vtt_file(
     parser: VTTParser, input_file: Path, progress: Progress, verbose: bool
 ) -> list[VTTCue]:
     """Parse VTT file and return cues."""
-
-    def parse_operation() -> list[VTTCue]:
-        return parser.parse_file(input_file)
-
     cues = _execute_with_progress(
         progress,
         "VTTファイルを解析中...",
         "✓ VTTファイル解析完了",
         "VTTファイルの解析に失敗しました",
-        parse_operation,
+        lambda: parser.parse_file(input_file),
     )
 
     if verbose:
-        console.print(f"解析されたキュー数: {len(cues)}")
-        if cues:
-            speakers = parser.get_speakers(cues)
-            duration = parser.get_duration(cues)
-            console.print(f"参加者数: {len(speakers)}")
-            console.print(f"会議時間: {duration:.1f}秒")
-            console.print(f"参加者: {', '.join(speakers)}")
-        console.print()
+        _display_parsing_results(parser, cues)
 
     return cues
+
+
+def _display_parsing_results(parser: VTTParser, cues: list[VTTCue]) -> None:
+    """Display verbose parsing results.
+
+    Args:
+        parser: VTT parser instance
+        cues: Parsed VTT cues
+    """
+    console.print(f"解析されたキュー数: {len(cues)}")
+    if cues:
+        speakers = parser.get_speakers(cues)
+        duration = parser.get_duration(cues)
+        console.print(f"参加者数: {len(speakers)}")
+        console.print(f"会議時間: {duration:.1f}秒")
+        console.print(f"参加者: {', '.join(speakers)}")
+    console.print()
 
 
 def _preprocess_cues(
@@ -168,43 +174,65 @@ def _save_intermediate_file(
     verbose: bool,
 ) -> Path:
     """Save intermediate markdown file."""
-
-    def save_operation() -> Path:
-        intermediate_path = intermediate_file or output.with_suffix(".preprocessed.md")
-
-        intermediate_writer = IntermediateTranscriptWriter()
-        transcript_stats = intermediate_writer.get_statistics(cues)
-
-        metadata: dict[str, Any] = {
-            "participants": transcript_stats["speakers"],
-            "duration": intermediate_writer.format_duration(
-                transcript_stats["duration"]
-            ),
-        }
-
-        intermediate_writer.write_markdown(
-            cues, intermediate_path, title or "前処理済み会議記録", metadata
-        )
-
-        return intermediate_path
-
     intermediate_path = _execute_with_progress(
         progress,
         "中間ファイルを保存中...",
         "✓ 中間ファイル保存完了",
         "中間ファイルの保存に失敗しました",
-        save_operation,
+        lambda: _save_intermediate_operation(cues, output, intermediate_file, title),
     )
 
     if verbose:
-        intermediate_writer = IntermediateTranscriptWriter()
-        transcript_stats = intermediate_writer.get_statistics(cues)
-        console.print(f"中間ファイル: {intermediate_path}")
-        console.print(f"発言者数: {len(transcript_stats['speakers'])}名")
-        console.print(f"総文字数: {transcript_stats['word_count']}文字")
-        console.print()
+        _display_intermediate_stats(cues, intermediate_path)
 
     return intermediate_path
+
+
+def _save_intermediate_operation(
+    cues: list[VTTCue],
+    output: Path,
+    intermediate_file: Path | None,
+    title: str | None,
+) -> Path:
+    """Execute intermediate file save operation.
+
+    Args:
+        cues: VTT cues to save
+        output: Output path
+        intermediate_file: Optional intermediate file path
+        title: Optional title
+
+    Returns:
+        Path to saved intermediate file
+    """
+    intermediate_path = intermediate_file or output.with_suffix(".preprocessed.md")
+    writer = IntermediateTranscriptWriter()
+    stats = writer.get_statistics(cues)
+
+    metadata: dict[str, Any] = {
+        "participants": stats["speakers"],
+        "duration": writer.format_duration(stats["duration"]),
+    }
+
+    writer.write_markdown(
+        cues, intermediate_path, title or "前処理済み会議記録", metadata
+    )
+    return intermediate_path
+
+
+def _display_intermediate_stats(cues: list[VTTCue], intermediate_path: Path) -> None:
+    """Display intermediate file statistics.
+
+    Args:
+        cues: VTT cues
+        intermediate_path: Path to intermediate file
+    """
+    writer = IntermediateTranscriptWriter()
+    stats = writer.get_statistics(cues)
+    console.print(f"中間ファイル: {intermediate_path}")
+    console.print(f"発言者数: {len(stats['speakers'])}名")
+    console.print(f"総文字数: {stats['word_count']}文字")
+    console.print()
 
 
 def _generate_chat_prompt(

@@ -43,6 +43,40 @@ class BedrockMeetingMinutesGenerator:
             validate_access: Whether to validate access during initialization
             prompt_template_file: Path to custom prompt template file
         """
+        self._setup_client_configuration(
+            aws_access_key_id,
+            aws_secret_access_key,
+            aws_session_token,
+            region_name,
+            model_id,
+            inference_profile_id,
+            prompt_template_file,
+            validate_access,
+        )
+
+    def _setup_client_configuration(
+        self,
+        aws_access_key_id: str | None,
+        aws_secret_access_key: str | None,
+        aws_session_token: str | None,
+        region_name: str,
+        model_id: str | None,
+        inference_profile_id: str | None,
+        prompt_template_file: str | Path | None,
+        validate_access: bool,
+    ) -> None:
+        """Setup client configuration in structured steps.
+
+        Args:
+            aws_access_key_id: AWS access key ID
+            aws_secret_access_key: AWS secret access key
+            aws_session_token: AWS session token
+            region_name: AWS region name
+            model_id: Bedrock model ID
+            inference_profile_id: Bedrock inference profile ID
+            prompt_template_file: Path to custom prompt template file
+            validate_access: Whether to validate access
+        """
         # Validate input parameters
         self._validate_model_parameters(model_id, inference_profile_id)
 
@@ -139,20 +173,44 @@ class BedrockMeetingMinutesGenerator:
         Returns:
             Dictionary of client configuration parameters
         """
+        return self._create_aws_client_config()
+
+    def _create_aws_client_config(self) -> dict[str, str]:
+        """Create AWS client configuration dictionary.
+
+        Returns:
+            Dictionary with AWS client configuration
+        """
         client_kwargs = {"region_name": self.region_name}
 
-        # Only add credentials if they are explicitly provided
-        if self.aws_access_key_id and self.aws_secret_access_key:
-            client_kwargs.update(
-                {
-                    "aws_access_key_id": self.aws_access_key_id,
-                    "aws_secret_access_key": self.aws_secret_access_key,
-                }
-            )
-            if self.aws_session_token:
-                client_kwargs["aws_session_token"] = self.aws_session_token
+        if self._has_explicit_credentials():
+            client_kwargs.update(self._get_credential_dict())
 
         return client_kwargs
+
+    def _has_explicit_credentials(self) -> bool:
+        """Check if explicit credentials are provided.
+
+        Returns:
+            True if credentials are explicitly provided
+        """
+        return bool(self.aws_access_key_id and self.aws_secret_access_key)
+
+    def _get_credential_dict(self) -> dict[str, str]:
+        """Get credential dictionary for client configuration.
+
+        Returns:
+            Dictionary with credential configuration
+        """
+        credentials: dict[str, str] = {
+            "aws_access_key_id": self.aws_access_key_id or "",
+            "aws_secret_access_key": self.aws_secret_access_key or "",
+        }
+
+        if self.aws_session_token:
+            credentials["aws_session_token"] = self.aws_session_token
+
+        return credentials
 
     def generate_minutes_from_markdown(
         self,
@@ -251,41 +309,78 @@ class BedrockMeetingMinutesGenerator:
         Returns:
             Formatted prompt string
         """
-        # If custom template file is provided, use it
-        if self.prompt_template_file and self.prompt_template_file.exists():
-            try:
-                template_content = self.prompt_template_file.read_text(encoding="utf-8")
-                return self._substitute_placeholders(
-                    template_content, markdown_content, title
-                )
-            except Exception as e:
-                raise BedrockError(
-                    f"Failed to read prompt template file "
-                    f"{self.prompt_template_file}: {e}"
-                ) from e
+        # Try custom template first
+        if template_content := self._load_custom_template():
+            return self._substitute_placeholders(
+                template_content, markdown_content, title
+            )
 
-        # Try to use default template file from prompt_templates/default.txt
-        # Handle PyInstaller bundled files
+        # Try default template
+        if template_content := self._load_default_template():
+            return self._substitute_placeholders(
+                template_content, markdown_content, title
+            )
+
+        # Use hardcoded fallback
+        return self._create_fallback_prompt(markdown_content, title)
+
+    def _load_custom_template(self) -> str | None:
+        """Load custom template file if available.
+
+        Returns:
+            Template content or None if not available
+        """
+        if not (self.prompt_template_file and self.prompt_template_file.exists()):
+            return None
+
+        try:
+            return self.prompt_template_file.read_text(encoding="utf-8")
+        except Exception as e:
+            raise BedrockError(
+                f"Failed to read prompt template file {self.prompt_template_file}: {e}"
+            ) from e
+
+    def _load_default_template(self) -> str | None:
+        """Load default template file.
+
+        Returns:
+            Template content or None if not available
+        """
+        default_path = self._get_default_template_path()
+        if not default_path.exists():
+            return None
+
+        try:
+            return default_path.read_text(encoding="utf-8")
+        except Exception:
+            return None
+
+    def _get_default_template_path(self) -> Path:
+        """Get path to default template file.
+
+        Returns:
+            Path to default template
+        """
         if getattr(sys, "frozen", False):
             # Running in a PyInstaller bundle
             bundle_dir = Path(getattr(sys, "_MEIPASS", ""))
-            default_template_path = bundle_dir / "prompt_templates" / "default.txt"
+            return bundle_dir / "prompt_templates" / "default.txt"
         else:
             # Running in normal Python environment
-            default_template_path = (
+            return (
                 Path(__file__).parent.parent.parent / "prompt_templates" / "default.txt"
             )
-        if default_template_path.exists():
-            try:
-                template_content = default_template_path.read_text(encoding="utf-8")
-                return self._substitute_placeholders(
-                    template_content, markdown_content, title
-                )
-            except Exception:
-                # If default template file fails, fallback to hardcoded prompt
-                pass
 
-        # Final fallback to hardcoded prompt
+    def _create_fallback_prompt(self, markdown_content: str, title: str) -> str:
+        """Create hardcoded fallback prompt.
+
+        Args:
+            markdown_content: Preprocessed transcript content
+            title: Meeting title
+
+        Returns:
+            Hardcoded prompt string
+        """
         return (
             f"以下の前処理済み会議記録から、構造化された議事録を作成してください。\n\n"
             f"要件:\n"

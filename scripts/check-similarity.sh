@@ -30,7 +30,7 @@ print_info() {
 
 # Default values
 THRESHOLD=0.7
-MIN_LINES=3
+MIN_LINES=8
 PRINT_CODE=false
 SOURCE_DIR="src/vtt2minutes"
 
@@ -54,7 +54,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  -t, --threshold FLOAT    Similarity threshold (0.0-1.0) [default: 0.7]"
-            echo "  -m, --min-lines INT      Minimum lines for functions [default: 3]"
+            echo "  -m, --min-lines INT      Minimum lines for functions [default: 8]"
             echo "  -p, --print              Print code in output"
             echo "  -h, --help               Show this help message"
             echo ""
@@ -77,9 +77,7 @@ if ! command -v similarity-py &> /dev/null; then
     print_error "similarity-py is not installed"
     echo ""
     echo "To install similarity-py:"
-    echo "  1. Install Rust: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
-    echo "  2. Source cargo environment: source \$HOME/.cargo/env"
-    echo "  3. Install similarity-py: cargo install similarity-py"
+    echo "  cargo install similarity-py"
     exit 1
 fi
 
@@ -109,11 +107,6 @@ fi
 # Run similarity analysis
 print_info "Running similarity analysis..."
 echo ""
-
-# Source cargo environment to ensure similarity-py is available
-if [ -f "$HOME/.cargo/env" ]; then
-    source "$HOME/.cargo/env"
-fi
 
 # Execute the similarity check
 if $SIMILARITY_CMD; then

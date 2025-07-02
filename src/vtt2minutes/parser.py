@@ -55,16 +55,35 @@ class VTTParser:
 
     def __init__(self) -> None:
         """Initialize the VTT parser."""
-        # Pattern for VTT cue timing line
-        self._timing_pattern = re.compile(
+        self._timing_pattern = self._create_timing_pattern()
+        self._speaker_pattern = self._create_speaker_pattern()
+        self._html_tag_pattern = self._create_html_tag_pattern()
+
+    def _create_timing_pattern(self) -> re.Pattern[str]:
+        """Create pattern for VTT cue timing line.
+
+        Returns:
+            Compiled regex pattern for timing lines
+        """
+        return re.compile(
             r"(\d{1,2}:\d{2}\.\d{3}|\d{1,2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{1,2}:\d{2}\.\d{3}|\d{1,2}:\d{2}:\d{2}\.\d{3})"
         )
 
-        # Pattern for speaker voice tags
-        self._speaker_pattern = re.compile(r"<v\s+([^>]+)>")
+    def _create_speaker_pattern(self) -> re.Pattern[str]:
+        """Create pattern for speaker voice tags.
 
-        # Pattern for removing HTML tags
-        self._html_tag_pattern = re.compile(r"<[^>]+>")
+        Returns:
+            Compiled regex pattern for speaker tags
+        """
+        return re.compile(r"<v\s+([^>]+)>")
+
+    def _create_html_tag_pattern(self) -> re.Pattern[str]:
+        """Create pattern for removing HTML tags.
+
+        Returns:
+            Compiled regex pattern for HTML tags
+        """
+        return re.compile(r"<[^>]+>")
 
     def parse_file(self, file_path: Path) -> list[VTTCue]:
         """Parse a VTT file and return list of cues.
@@ -125,11 +144,21 @@ class VTTParser:
             List of parsed VTT cues
         """
         cues: list[VTTCue] = []
-        i = 1  # Skip WEBVTT header
+        return self._process_all_lines(lines, cues)
 
+    def _process_all_lines(self, lines: list[str], cues: list[VTTCue]) -> list[VTTCue]:
+        """Process all lines starting from index 1 (skip WEBVTT header).
+
+        Args:
+            lines: Lines from VTT file
+            cues: List to append parsed cues to
+
+        Returns:
+            List of parsed VTT cues
+        """
+        i = 1  # Skip WEBVTT header
         while i < len(lines):
             i = self._process_line(lines, i, cues)
-
         return cues
 
     def _process_line(self, lines: list[str], i: int, cues: list[VTTCue]) -> int:
@@ -170,9 +199,7 @@ class VTTParser:
         Returns:
             Next line index to process
         """
-        start_time = timing_match.group(1)
-        end_time = timing_match.group(2)
-
+        start_time, end_time = self._extract_timing_info(timing_match)
         text_lines, next_i = self._collect_text_lines(lines, i + 1)
 
         if text_lines:
@@ -180,6 +207,17 @@ class VTTParser:
             cues.append(cue)
 
         return next_i
+
+    def _extract_timing_info(self, timing_match: re.Match[str]) -> tuple[str, str]:
+        """Extract start and end times from timing match.
+
+        Args:
+            timing_match: Regex match object for timing
+
+        Returns:
+            Tuple of (start_time, end_time)
+        """
+        return timing_match.group(1), timing_match.group(2)
 
     def _collect_text_lines(
         self, lines: list[str], start_i: int
@@ -198,16 +236,27 @@ class VTTParser:
 
         while i < len(lines):
             text_line = lines[i].strip()
-            if not text_line:
+
+            if self._should_stop_collecting(text_line):
+                if self._timing_pattern.match(text_line):
+                    i -= 1  # Step back for next cue
                 break
-            if self._timing_pattern.match(text_line):
-                # Next cue found, step back
-                i -= 1
-                break
+
             text_lines.append(text_line)
             i += 1
 
         return text_lines, i + 1
+
+    def _should_stop_collecting(self, text_line: str) -> bool:
+        """Determine if we should stop collecting text lines.
+
+        Args:
+            text_line: Current text line
+
+        Returns:
+            True if we should stop collecting
+        """
+        return not text_line or bool(self._timing_pattern.match(text_line))
 
     def _create_cue(
         self, start_time: str, end_time: str, text_lines: list[str]
