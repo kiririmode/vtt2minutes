@@ -624,7 +624,7 @@ def main(
 
 
 @click.group()
-@click.version_option(version="0.1.0", prog_name="vtt2minutes")
+@click.version_option(version="1.0.0", prog_name="vtt2minutes")
 def cli() -> None:
     """VTT2Minutes - Convert Teams VTT transcripts to meeting minutes."""
     pass
