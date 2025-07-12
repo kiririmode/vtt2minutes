@@ -445,3 +445,64 @@ class TestBedrockError:
         """Test that BedrockError inherits from Exception."""
         error = BedrockError("Test error")
         assert isinstance(error, Exception)
+
+    def test_init_with_both_model_and_inference_profile_error(self) -> None:
+        """Test initialization fails when both parameters are provided."""
+        with pytest.raises(
+            ValueError, match="Cannot specify both model_id and inference_profile_id"
+        ):
+            BedrockMeetingMinutesGenerator(
+                model_id="anthropic.claude-3-sonnet-20240229-v1:0",
+                inference_profile_id="test-profile",
+            )
+
+    def test_get_credentials_with_session_token(self) -> None:
+        """Test that session token is included in credentials when provided."""
+        generator = BedrockMeetingMinutesGenerator(
+            aws_access_key_id="test_key",
+            aws_secret_access_key="test_secret",
+            aws_session_token="test_token",
+        )
+
+        credentials = generator._get_credential_dict()
+        assert credentials["aws_session_token"] == "test_token"
+
+    def test_init_with_inference_profile_id(self) -> None:
+        """Test initialization with inference_profile_id."""
+        generator = BedrockMeetingMinutesGenerator(
+            inference_profile_id="test-profile",
+        )
+
+        assert generator.model_id is None
+        assert generator.inference_profile_id == "test-profile"
+
+    @patch("vtt2minutes.bedrock.boto3.client")
+    def test_generate_minutes_with_inference_profile(self, mock_boto3: Mock) -> None:
+        """Test generate_minutes using inference_profile_id."""
+        mock_client = Mock()
+        mock_boto3.return_value = mock_client
+
+        # Mock successful response - Claude format
+        mock_response = {
+            "body": Mock(),
+        }
+        mock_response["body"].read.return_value = json.dumps(
+            {"content": [{"text": "Generated minutes"}]}
+        ).encode()
+
+        mock_client.invoke_model.return_value = mock_response
+
+        generator = BedrockMeetingMinutesGenerator(
+            # Include "claude" in the ID for proper response parsing
+            inference_profile_id="anthropic.claude-3-sonnet-20240229-v1:0",
+        )
+
+        result = generator.generate_minutes_from_markdown(
+            "Test content", "Test meeting"
+        )
+
+        assert result == "Generated minutes"
+
+        # Verify the correct parameters were used
+        call_args = mock_client.invoke_model.call_args
+        assert call_args[1]["modelId"] == "anthropic.claude-3-sonnet-20240229-v1:0"
