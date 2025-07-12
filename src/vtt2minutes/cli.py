@@ -21,6 +21,32 @@ console = Console()
 T = TypeVar("T")
 
 
+class FileOperationError(Exception):
+    """Exception raised for file operation errors."""
+
+    pass
+
+
+def _check_file_exists_and_overwrite(
+    file_path: Path, overwrite: bool, file_type: str
+) -> None:
+    """Check if file exists and handle overwrite logic.
+
+    Args:
+        file_path: Path to check
+        overwrite: Whether overwriting is allowed
+        file_type: Description of the file type for error message
+
+    Raises:
+        FileOperationError: If file exists and overwrite is False
+    """
+    if file_path.exists() and not overwrite:
+        raise FileOperationError(
+            f"{file_type} already exists: {file_path}. "
+            "Use --overwrite to overwrite existing files."
+        )
+
+
 def _display_header(verbose: bool, input_file: Path, output: Path) -> None:
     """Display application header and file information."""
     if verbose:
@@ -70,10 +96,47 @@ def _execute_with_progress[T](
             verbose_callback()
 
         return result
+    except FileOperationError as e:
+        progress.stop()
+        console.print(f"[red]{e}[/red]")
+        sys.exit(1)
     except Exception as e:
         progress.stop()
         console.print(f"[red]{error_message}: {e}[/red]")
         sys.exit(1)
+
+
+def _execute_operation_with_verbose_output[T](
+    progress: Progress,
+    task_desc: str,
+    success_desc: str,
+    error_prefix: str,
+    operation: Callable[[], T],
+    verbose: bool,
+    verbose_callback: Callable[[T], None] | None = None,
+) -> T:
+    """Execute operation with progress tracking and optional verbose output.
+
+    Args:
+        progress: Progress instance
+        task_desc: Task description while running
+        success_desc: Success message
+        error_prefix: Error message prefix
+        operation: Function to execute
+        verbose: Whether to show verbose output
+        verbose_callback: Callback with operation result for verbose output
+
+    Returns:
+        Result of the operation
+    """
+    result = _execute_with_progress(
+        progress, task_desc, success_desc, error_prefix, operation
+    )
+
+    if verbose and verbose_callback:
+        verbose_callback(result)
+
+    return result
 
 
 def _initialize_components(
@@ -100,18 +163,15 @@ def _parse_vtt_file(
     parser: VTTParser, input_file: Path, progress: Progress, verbose: bool
 ) -> list[VTTCue]:
     """Parse VTT file and return cues."""
-    cues = _execute_with_progress(
-        progress,
-        "VTTファイルを解析中...",
-        "✓ VTTファイル解析完了",
-        "VTTファイルの解析に失敗しました",
-        lambda: parser.parse_file(input_file),
+    return _execute_operation_with_verbose_output(
+        progress=progress,
+        task_desc="VTTファイルを解析中...",
+        success_desc="✓ VTTファイル解析完了",
+        error_prefix="VTTファイルの解析に失敗しました",
+        operation=lambda: parser.parse_file(input_file),
+        verbose=verbose,
+        verbose_callback=lambda result: _display_parsing_results(parser, result),
     )
-
-    if verbose:
-        _display_parsing_results(parser, cues)
-
-    return cues
 
 
 def _display_parsing_results(parser: VTTParser, cues: list[VTTCue]) -> None:
@@ -175,20 +235,17 @@ def _save_intermediate_file(
     overwrite: bool = False,
 ) -> Path:
     """Save intermediate markdown file."""
-    intermediate_path = _execute_with_progress(
-        progress,
-        "中間ファイルを保存中...",
-        "✓ 中間ファイル保存完了",
-        "中間ファイルの保存に失敗しました",
-        lambda: _save_intermediate_operation(
+    return _execute_operation_with_verbose_output(
+        progress=progress,
+        task_desc="中間ファイルを保存中...",
+        success_desc="✓ 中間ファイル保存完了",
+        error_prefix="中間ファイルの保存に失敗しました",
+        operation=lambda: _save_intermediate_operation(
             cues, output, intermediate_file, title, overwrite
         ),
+        verbose=verbose,
+        verbose_callback=lambda result: _display_intermediate_stats(cues, result),
     )
-
-    if verbose:
-        _display_intermediate_stats(cues, intermediate_path)
-
-    return intermediate_path
 
 
 def _save_intermediate_operation(
@@ -211,15 +268,10 @@ def _save_intermediate_operation(
         Path to saved intermediate file
 
     Raises:
-        FileExistsError: If intermediate file exists and overwrite is False
+        FileOperationError: If intermediate file exists and overwrite is False
     """
     intermediate_path = intermediate_file or output.with_suffix(".preprocessed.md")
-
-    if intermediate_path.exists() and not overwrite:
-        raise FileExistsError(
-            f"Intermediate file already exists: {intermediate_path}. "
-            "Use --overwrite to overwrite existing files."
-        )
+    _check_file_exists_and_overwrite(intermediate_path, overwrite, "Intermediate file")
 
     writer = IntermediateTranscriptWriter()
     stats = writer.get_statistics(cues)
@@ -263,11 +315,9 @@ def _generate_chat_prompt(
     """Generate chat prompt file and exit."""
 
     def generate_operation() -> None:
-        if chat_prompt_file.exists() and not overwrite:
-            raise FileExistsError(
-                f"Chat prompt file already exists: {chat_prompt_file}. "
-                "Use --overwrite to overwrite existing files."
-            )
+        _check_file_exists_and_overwrite(
+            chat_prompt_file, overwrite, "Chat prompt file"
+        )
 
         bedrock_generator = BedrockMeetingMinutesGenerator(
             region_name=bedrock_region,
@@ -399,11 +449,7 @@ def _save_output_file(
     """
 
     def save_operation() -> None:
-        if output.exists() and not overwrite:
-            raise FileExistsError(
-                f"Output file already exists: {output}. "
-                "Use --overwrite to overwrite existing files."
-            )
+        _check_file_exists_and_overwrite(output, overwrite, "Output file")
         output.write_text(content, encoding="utf-8")
 
     _execute_with_progress(
