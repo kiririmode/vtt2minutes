@@ -138,7 +138,29 @@ vtt2minutes meeting.vtt --prompt-template custom_template.txt
 
 # ChatGPT用プロンプトファイルを生成（Bedrockを使わない）
 vtt2minutes meeting.vtt --chat-prompt-file prompt.txt
+
+# 既存ファイルを上書きする
+vtt2minutes meeting.vtt --overwrite
 ```
+
+### ファイルの上書き
+
+デフォルトでは、出力ファイルが既に存在する場合はエラーが発生します。既存ファイルを上書きするには `--overwrite` オプションを使用してください：
+
+```bash
+# 既存の出力ファイルを上書き
+vtt2minutes meeting.vtt --overwrite
+
+# 既存の中間ファイルやプロンプトファイルも上書き
+vtt2minutes meeting.vtt --intermediate-file processed.md --chat-prompt-file prompt.txt --overwrite
+```
+
+このオプションは以下のファイルの上書きを許可します：
+- **出力ファイル**: 生成される議事録ファイル（`.md`）
+- **中間ファイル**: 前処理済みトランスクリプトファイル（`--intermediate-file`）
+- **プロンプトファイル**: ChatGPT用プロンプトファイル（`--chat-prompt-file`）
+
+**注意**: `--overwrite` オプションを使用すると、既存のファイルが警告なしに上書きされるため、重要なファイルのバックアップを事前に取ることをお勧めします。
 
 ### ChatGPT等のチャット型AIサービス向け機能
 
