@@ -172,6 +172,7 @@ def _save_intermediate_file(
     title: str | None,
     progress: Progress,
     verbose: bool,
+    overwrite: bool = False,
 ) -> Path:
     """Save intermediate markdown file."""
     intermediate_path = _execute_with_progress(
@@ -179,7 +180,9 @@ def _save_intermediate_file(
         "中間ファイルを保存中...",
         "✓ 中間ファイル保存完了",
         "中間ファイルの保存に失敗しました",
-        lambda: _save_intermediate_operation(cues, output, intermediate_file, title),
+        lambda: _save_intermediate_operation(
+            cues, output, intermediate_file, title, overwrite
+        ),
     )
 
     if verbose:
@@ -193,6 +196,7 @@ def _save_intermediate_operation(
     output: Path,
     intermediate_file: Path | None,
     title: str | None,
+    overwrite: bool = False,
 ) -> Path:
     """Execute intermediate file save operation.
 
@@ -201,11 +205,22 @@ def _save_intermediate_operation(
         output: Output path
         intermediate_file: Optional intermediate file path
         title: Optional title
+        overwrite: Whether to overwrite existing files
 
     Returns:
         Path to saved intermediate file
+
+    Raises:
+        FileExistsError: If intermediate file exists and overwrite is False
     """
     intermediate_path = intermediate_file or output.with_suffix(".preprocessed.md")
+
+    if intermediate_path.exists() and not overwrite:
+        raise FileExistsError(
+            f"Intermediate file already exists: {intermediate_path}. "
+            "Use --overwrite to overwrite existing files."
+        )
+
     writer = IntermediateTranscriptWriter()
     stats = writer.get_statistics(cues)
 
@@ -243,10 +258,17 @@ def _generate_chat_prompt(
     prompt_template: Path | None,
     progress: Progress,
     verbose: bool,
+    overwrite: bool = False,
 ) -> None:
     """Generate chat prompt file and exit."""
 
     def generate_operation() -> None:
+        if chat_prompt_file.exists() and not overwrite:
+            raise FileExistsError(
+                f"Chat prompt file already exists: {chat_prompt_file}. "
+                "Use --overwrite to overwrite existing files."
+            )
+
         bedrock_generator = BedrockMeetingMinutesGenerator(
             region_name=bedrock_region,
             model_id="anthropic.claude-3-5-sonnet-20241022-v2:0",
@@ -361,10 +383,27 @@ def _generate_bedrock_minutes(
         sys.exit(1)
 
 
-def _save_output_file(output: Path, content: str, progress: Progress) -> None:
-    """Save final output file."""
+def _save_output_file(
+    output: Path, content: str, progress: Progress, overwrite: bool = False
+) -> None:
+    """Save final output file.
+
+    Args:
+        output: Output file path
+        content: Content to write
+        progress: Progress instance
+        overwrite: Whether to overwrite existing files
+
+    Raises:
+        FileExistsError: If output file exists and overwrite is False
+    """
 
     def save_operation() -> None:
+        if output.exists() and not overwrite:
+            raise FileExistsError(
+                f"Output file already exists: {output}. "
+                "Use --overwrite to overwrite existing files."
+            )
         output.write_text(content, encoding="utf-8")
 
     _execute_with_progress(
@@ -505,6 +544,11 @@ def _display_final_summary(output: Path, title: str | None, cues: list[VTTCue]) 
 )
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--stats", is_flag=True, help="Show preprocessing statistics")
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    help="Overwrite existing output files without warning",
+)
 def main(
     input_file: Path,
     output: Path | None,
@@ -523,6 +567,7 @@ def main(
     chat_prompt_file: Path | None,
     verbose: bool,
     stats: bool,
+    overwrite: bool,
 ) -> None:
     """Convert Microsoft Teams VTT transcripts to AI-powered meeting minutes.
 
@@ -576,7 +621,7 @@ def main(
 
             # Step 3: Save intermediate file
             intermediate_path = _save_intermediate_file(
-                cues, output, intermediate_file, title, progress, verbose
+                cues, output, intermediate_file, title, progress, verbose, overwrite
             )
 
             # Step 4: Generate chat prompt file if requested (skips Bedrock)
@@ -589,6 +634,7 @@ def main(
                     prompt_template,
                     progress,
                     verbose,
+                    overwrite,
                 )
                 return
 
@@ -605,7 +651,7 @@ def main(
             )
 
             # Step 6: Save output file
-            _save_output_file(output, markdown_content, progress)
+            _save_output_file(output, markdown_content, progress, overwrite)
 
         # Show statistics if requested
         _display_statistics(stats, no_preprocessing, original_cues, cues, preprocessor)

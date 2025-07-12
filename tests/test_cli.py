@@ -1209,3 +1209,389 @@ class TestCLI:
             assert result.exit_code == 1
             # RuntimeError during VTT parsing shows specific error, not generic
             assert "VTTファイルの解析に失敗しました" in result.output
+
+    def test_overwrite_option_help(self) -> None:
+        """Test that --overwrite option appears in help."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["--help"])
+
+        assert result.exit_code == 0
+        assert "--overwrite" in result.output
+        assert "Overwrite existing output files" in result.output
+
+    @patch("vtt2minutes.cli.VTTParser")
+    @patch("vtt2minutes.cli.TextPreprocessor")
+    @patch("vtt2minutes.cli.IntermediateTranscriptWriter")
+    def test_output_file_exists_without_overwrite(
+        self,
+        mock_writer: Mock,
+        mock_preprocessor: Mock,
+        mock_parser: Mock,
+    ) -> None:
+        """Test error when output file exists and --overwrite is not used."""
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = Path(temp_dir) / "test.vtt"
+            input_file.write_text(
+                "WEBVTT\n\n00:00.000 --> 00:05.000\nSpeaker: Hello", encoding="utf-8"
+            )
+
+            output_file = Path(temp_dir) / "output.md"
+            # Create existing output file
+            output_file.write_text("Existing content", encoding="utf-8")
+
+            # Mock components
+            mock_cue = Mock()
+            mock_parser_instance = Mock()
+            mock_parser_instance.parse_file.return_value = [mock_cue]
+            mock_parser_instance.get_speakers.return_value = ["Speaker"]
+            mock_parser_instance.get_duration.return_value = 5.0
+            mock_parser.return_value = mock_parser_instance
+
+            mock_preprocessor_instance = Mock()
+            mock_preprocessor_instance.preprocess_cues.return_value = [mock_cue]
+            mock_preprocessor.return_value = mock_preprocessor_instance
+
+            mock_writer_instance = Mock()
+            mock_writer_instance.get_statistics.return_value = {
+                "speakers": ["Speaker"],
+                "duration": 5.0,
+                "word_count": 2,
+            }
+            mock_writer_instance.format_duration.return_value = "00:00:05"
+            # Mock write_markdown to create actual file
+            def mock_write_markdown(
+                cues: list[Any], path: Path, title: str, metadata: dict[str, Any]
+            ) -> None:
+                del cues, title, metadata  # Mark as used
+                content = "# Mock Intermediate Content\n\nSpeaker: Hello"
+                path.write_text(content, encoding="utf-8")
+
+            mock_writer_instance.write_markdown.side_effect = mock_write_markdown
+            mock_writer.return_value = mock_writer_instance
+
+            result = runner.invoke(
+                main,
+                [
+                    str(input_file),
+                    "-o", 
+                    str(output_file),
+                    "--chat-prompt-file",
+                    "prompt.txt",
+                ],
+            )
+
+            assert result.exit_code == 1
+            assert "中間ファイルの保存に失敗しました" in result.output
+
+    @patch("vtt2minutes.cli.VTTParser")
+    @patch("vtt2minutes.cli.TextPreprocessor")
+    @patch("vtt2minutes.cli.IntermediateTranscriptWriter")
+    def test_output_file_exists_with_overwrite(
+        self,
+        mock_writer: Mock,
+        mock_preprocessor: Mock,
+        mock_parser: Mock,
+    ) -> None:
+        """Test successful overwrite when output file exists and --overwrite is used."""
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = Path(temp_dir) / "test.vtt"
+            input_file.write_text(
+                "WEBVTT\n\n00:00.000 --> 00:05.000\nSpeaker: Hello", encoding="utf-8"
+            )
+
+            output_file = Path(temp_dir) / "output.md"
+            # Create existing output file
+            output_file.write_text("Existing content", encoding="utf-8")
+
+            # Mock components
+            mock_cue = Mock()
+            mock_parser_instance = Mock()
+            mock_parser_instance.parse_file.return_value = [mock_cue]
+            mock_parser_instance.get_speakers.return_value = ["Speaker"]
+            mock_parser_instance.get_duration.return_value = 5.0
+            mock_parser.return_value = mock_parser_instance
+
+            mock_preprocessor_instance = Mock()
+            mock_preprocessor_instance.preprocess_cues.return_value = [mock_cue]
+            mock_preprocessor.return_value = mock_preprocessor_instance
+
+            mock_writer_instance = Mock()
+            mock_writer_instance.get_statistics.return_value = {
+                "speakers": ["Speaker"],
+                "duration": 5.0,
+                "word_count": 2,
+            }
+            mock_writer_instance.format_duration.return_value = "00:00:05"
+            # Mock write_markdown to create actual file
+            def mock_write_markdown(
+                cues: list[Any], path: Path, title: str, metadata: dict[str, Any]
+            ) -> None:
+                del cues, title, metadata  # Mark as used
+                content = "# Mock Intermediate Content\n\nSpeaker: Hello"
+                path.write_text(content, encoding="utf-8")
+
+            mock_writer_instance.write_markdown.side_effect = mock_write_markdown
+            mock_writer.return_value = mock_writer_instance
+
+            chat_prompt_file = Path(temp_dir) / "prompt.txt"
+
+            result = runner.invoke(
+                main,
+                [
+                    str(input_file),
+                    "-o", 
+                    str(output_file),
+                    "--chat-prompt-file",
+                    str(chat_prompt_file),
+                    "--overwrite",
+                ],
+            )
+
+            assert result.exit_code == 0
+            assert "チャットプロンプトファイルが正常に生成されました" in result.output
+
+    @patch("vtt2minutes.cli.VTTParser")
+    @patch("vtt2minutes.cli.TextPreprocessor")
+    @patch("vtt2minutes.cli.IntermediateTranscriptWriter")
+    def test_intermediate_file_exists_without_overwrite(
+        self,
+        mock_writer: Mock,
+        mock_preprocessor: Mock,
+        mock_parser: Mock,
+    ) -> None:
+        """Test error when intermediate file exists and --overwrite is not used."""
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = Path(temp_dir) / "test.vtt"
+            input_file.write_text(
+                "WEBVTT\n\n00:00.000 --> 00:05.000\nSpeaker: Hello", encoding="utf-8"
+            )
+
+            intermediate_file = Path(temp_dir) / "intermediate.md"
+            # Create existing intermediate file
+            intermediate_file.write_text("Existing intermediate", encoding="utf-8")
+
+            # Mock components
+            mock_cue = Mock()
+            mock_parser_instance = Mock()
+            mock_parser_instance.parse_file.return_value = [mock_cue]
+            mock_parser_instance.get_speakers.return_value = ["Speaker"]
+            mock_parser_instance.get_duration.return_value = 5.0
+            mock_parser.return_value = mock_parser_instance
+
+            mock_preprocessor_instance = Mock()
+            mock_preprocessor_instance.preprocess_cues.return_value = [mock_cue]
+            mock_preprocessor.return_value = mock_preprocessor_instance
+
+            mock_writer_instance = Mock()
+            mock_writer_instance.get_statistics.return_value = {
+                "speakers": ["Speaker"],
+                "duration": 5.0,
+                "word_count": 2,
+            }
+            mock_writer_instance.format_duration.return_value = "00:00:05"
+            mock_writer.return_value = mock_writer_instance
+
+            result = runner.invoke(
+                main,
+                [
+                    str(input_file),
+                    "--intermediate-file",
+                    str(intermediate_file),
+                    "--chat-prompt-file",
+                    "prompt.txt",
+                ],
+            )
+
+            assert result.exit_code == 1
+            assert "中間ファイルの保存に失敗しました" in result.output
+
+    @patch("vtt2minutes.cli.VTTParser")
+    @patch("vtt2minutes.cli.TextPreprocessor")
+    @patch("vtt2minutes.cli.IntermediateTranscriptWriter")
+    def test_chat_prompt_file_exists_without_overwrite(
+        self,
+        mock_writer: Mock,
+        mock_preprocessor: Mock,
+        mock_parser: Mock,
+    ) -> None:
+        """Test error when chat prompt file exists and --overwrite is not used."""
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = Path(temp_dir) / "test.vtt"
+            input_file.write_text(
+                "WEBVTT\n\n00:00.000 --> 00:05.000\nSpeaker: Hello", encoding="utf-8"
+            )
+
+            chat_prompt_file = Path(temp_dir) / "prompt.txt"
+            # Create existing chat prompt file
+            chat_prompt_file.write_text("Existing prompt", encoding="utf-8")
+
+            # Mock components
+            mock_cue = Mock()
+            mock_parser_instance = Mock()
+            mock_parser_instance.parse_file.return_value = [mock_cue]
+            mock_parser_instance.get_speakers.return_value = ["Speaker"]
+            mock_parser_instance.get_duration.return_value = 5.0
+            mock_parser.return_value = mock_parser_instance
+
+            mock_preprocessor_instance = Mock()
+            mock_preprocessor_instance.preprocess_cues.return_value = [mock_cue]
+            mock_preprocessor.return_value = mock_preprocessor_instance
+
+            mock_writer_instance = Mock()
+            mock_writer_instance.get_statistics.return_value = {
+                "speakers": ["Speaker"],
+                "duration": 5.0,
+                "word_count": 2,
+            }
+            mock_writer_instance.format_duration.return_value = "00:00:05"
+            # Mock write_markdown to create actual file
+            def mock_write_markdown(
+                cues: list[Any], path: Path, title: str, metadata: dict[str, Any]
+            ) -> None:
+                del cues, title, metadata  # Mark as used
+                content = "# Mock Intermediate Content\n\nSpeaker: Hello"
+                path.write_text(content, encoding="utf-8")
+
+            mock_writer_instance.write_markdown.side_effect = mock_write_markdown
+            mock_writer.return_value = mock_writer_instance
+
+            result = runner.invoke(
+                main,
+                [
+                    str(input_file),
+                    "--chat-prompt-file",
+                    str(chat_prompt_file),
+                ],
+            )
+
+            assert result.exit_code == 1
+            assert "チャットプロンプトファイルの生成に失敗しました" in result.output
+
+    @patch("vtt2minutes.cli.VTTParser")
+    @patch("vtt2minutes.cli.TextPreprocessor")
+    @patch("vtt2minutes.cli.IntermediateTranscriptWriter")
+    @patch("vtt2minutes.cli.BedrockMeetingMinutesGenerator")
+    def test_final_output_file_exists_without_overwrite(
+        self,
+        mock_bedrock: Mock,
+        mock_writer: Mock,
+        mock_preprocessor: Mock,
+        mock_parser: Mock,
+    ) -> None:
+        """Test error when final output file exists and --overwrite is not used."""
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = Path(temp_dir) / "test.vtt"
+            input_file.write_text(
+                "WEBVTT\n\n00:00.000 --> 00:05.000\nSpeaker: Hello", encoding="utf-8"
+            )
+
+            output_file = Path(temp_dir) / "output.md"
+            # Create existing output file
+            output_file.write_text("Existing content", encoding="utf-8")
+
+            # Mock components
+            mock_cue = Mock()
+            mock_parser_instance = Mock()
+            mock_parser_instance.parse_file.return_value = [mock_cue]
+            mock_parser_instance.get_speakers.return_value = ["Speaker"]
+            mock_parser_instance.get_duration.return_value = 5.0
+            mock_parser.return_value = mock_parser_instance
+
+            mock_preprocessor_instance = Mock()
+            mock_preprocessor_instance.preprocess_cues.return_value = [mock_cue]
+            mock_preprocessor.return_value = mock_preprocessor_instance
+
+            mock_writer_instance = self._create_mock_writer_with_file_creation()
+            mock_writer.return_value = mock_writer_instance
+
+            mock_bedrock_instance = Mock()
+            mock_bedrock_instance.generate_minutes_from_markdown.return_value = (
+                "# Generated Minutes"
+            )
+            mock_bedrock.return_value = mock_bedrock_instance
+
+            result = runner.invoke(
+                main,
+                [
+                    str(input_file),
+                    "-o",
+                    str(output_file),
+                    "--bedrock-model",
+                    "anthropic.claude-3-haiku-20240307-v1:0",
+                ],
+            )
+
+            assert result.exit_code == 1
+            assert "ファイルの保存に失敗しました" in result.output
+
+    @patch("vtt2minutes.cli.VTTParser")
+    @patch("vtt2minutes.cli.TextPreprocessor")
+    @patch("vtt2minutes.cli.IntermediateTranscriptWriter")
+    @patch("vtt2minutes.cli.BedrockMeetingMinutesGenerator")
+    def test_final_output_file_exists_with_overwrite(
+        self,
+        mock_bedrock: Mock,
+        mock_writer: Mock,
+        mock_preprocessor: Mock,
+        mock_parser: Mock,
+    ) -> None:
+        """Test successful overwrite when final output file exists and --overwrite is used."""
+        runner = CliRunner()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = Path(temp_dir) / "test.vtt"
+            input_file.write_text(
+                "WEBVTT\n\n00:00.000 --> 00:05.000\nSpeaker: Hello", encoding="utf-8"
+            )
+
+            output_file = Path(temp_dir) / "output.md"
+            # Create existing output file
+            output_file.write_text("Existing content", encoding="utf-8")
+
+            # Mock components
+            mock_cue = Mock()
+            mock_parser_instance = Mock()
+            mock_parser_instance.parse_file.return_value = [mock_cue]
+            mock_parser_instance.get_speakers.return_value = ["Speaker"]
+            mock_parser_instance.get_duration.return_value = 5.0
+            mock_parser.return_value = mock_parser_instance
+
+            mock_preprocessor_instance = Mock()
+            mock_preprocessor_instance.preprocess_cues.return_value = [mock_cue]
+            mock_preprocessor.return_value = mock_preprocessor_instance
+
+            mock_writer_instance = self._create_mock_writer_with_file_creation()
+            mock_writer.return_value = mock_writer_instance
+
+            mock_bedrock_instance = Mock()
+            mock_bedrock_instance.generate_minutes_from_markdown.return_value = (
+                "# Generated Minutes"
+            )
+            mock_bedrock.return_value = mock_bedrock_instance
+
+            result = runner.invoke(
+                main,
+                [
+                    str(input_file),
+                    "-o",
+                    str(output_file),
+                    "--bedrock-model",
+                    "anthropic.claude-3-haiku-20240307-v1:0",
+                    "--overwrite",
+                ],
+            )
+
+            assert result.exit_code == 0
+            assert "AI議事録生成が完了しました" in result.output
+            # Verify the output file was overwritten
+            assert output_file.read_text(encoding="utf-8") == "# Generated Minutes"
