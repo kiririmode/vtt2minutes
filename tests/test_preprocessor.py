@@ -1,6 +1,7 @@
 """Tests for the text preprocessor module."""
 
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -54,6 +55,40 @@ class TestPreprocessingConfig:
 class TestTextPreprocessor:
     """Test cases for TextPreprocessor."""
 
+    def _create_test_cues(
+        self, cue_data: Sequence[tuple[str, str, str | None, str]]
+    ) -> list[VTTCue]:
+        """Helper to create VTTCue objects from tuple data."""
+        return [
+            VTTCue(start, end, speaker, text) for start, end, speaker, text in cue_data
+        ]
+
+    def _test_preprocessing(
+        self,
+        preprocessor: TextPreprocessor,
+        input_cues: list[VTTCue],
+        expected_count: int | None = None,
+        expected_texts: list[str] | None = None,
+        expected_speakers: list[str | None] | None = None,
+    ) -> list[VTTCue]:
+        """Helper to run preprocessing and verify results."""
+        result = preprocessor.preprocess_cues(input_cues)
+
+        if expected_count is not None:
+            assert len(result) == expected_count
+
+        if expected_texts is not None:
+            actual_texts = [cue.text for cue in result]
+            for expected_text in expected_texts:
+                assert expected_text in actual_texts
+
+        if expected_speakers is not None:
+            actual_speakers = [cue.speaker for cue in result]
+            for expected_speaker in expected_speakers:
+                assert expected_speaker in actual_speakers
+
+        return result
+
     @pytest.fixture
     def preprocessor(self) -> TextPreprocessor:
         """Create a TextPreprocessor instance for testing."""
@@ -96,19 +131,17 @@ class TestTextPreprocessor:
 
     def test_filler_word_removal(self, preprocessor: TextPreprocessor) -> None:
         """Test removal of filler words."""
-        cues = [
-            VTTCue(
-                "00:00:01.000", "00:00:03.000", "田中", "えー、今日はお疲れ様です。"
-            ),
-            VTTCue(
+        cue_data = [
+            ("00:00:01.000", "00:00:03.000", "田中", "えー、今日はお疲れ様です。"),
+            (
                 "00:00:03.000",
                 "00:00:05.000",
                 "佐藤",
                 "あのー、そうですね、わかりました。",
             ),
         ]
-
-        result = preprocessor.preprocess_cues(cues)
+        cues = self._create_test_cues(cue_data)
+        result = self._test_preprocessing(preprocessor, cues, expected_count=2)
 
         # Check that filler words are removed
         assert "えー" not in result[0].text
@@ -120,14 +153,14 @@ class TestTextPreprocessor:
 
     def test_transcription_error_fixing(self, preprocessor: TextPreprocessor) -> None:
         """Test fixing of common transcription errors."""
-        cues = [
-            VTTCue("00:00:01.000", "00:00:03.000", "田中", "これはです。です。"),
-            VTTCue("00:00:03.000", "00:00:05.000", "佐藤", "わかりりりります。"),
-            VTTCue("00:00:05.000", "00:00:07.000", "山田", "同じ同じことです。"),
-            VTTCue("00:00:07.000", "00:00:09.000", "田中", "多  く  の  空  白"),
+        cue_data = [
+            ("00:00:01.000", "00:00:03.000", "田中", "これはです。です。"),
+            ("00:00:03.000", "00:00:05.000", "佐藤", "わかりりりります。"),
+            ("00:00:05.000", "00:00:07.000", "山田", "同じ同じことです。"),
+            ("00:00:07.000", "00:00:09.000", "田中", "多  く  の  空  白"),
         ]
-
-        result = preprocessor.preprocess_cues(cues)
+        cues = self._create_test_cues(cue_data)
+        result = self._test_preprocessing(preprocessor, cues, expected_count=4)
 
         # Check error corrections
         assert "これはです" in result[0].text
@@ -227,7 +260,7 @@ class TestTextPreprocessor:
         assert "田中" in speakers
         assert "佐藤" in speakers
 
-    def test_no_merging_when_disabled(self, preprocessor: TextPreprocessor) -> None:
+    def test_no_merging_when_disabled(self) -> None:
         """Test that merging doesn't occur when disabled."""
         config = PreprocessingConfig(merge_same_speaker=False)
         preprocessor_no_merge = TextPreprocessor(config)
@@ -319,30 +352,33 @@ class TestTextPreprocessor:
 
     def test_speaker_preservation(self, preprocessor: TextPreprocessor) -> None:
         """Test that speaker information is preserved during preprocessing."""
-        cues = [
-            VTTCue("00:00:01.000", "00:00:03.000", "田中", "田中の発言です"),
-            VTTCue("00:00:03.000", "00:00:05.000", "佐藤", "佐藤の発言です"),
-            VTTCue("00:00:05.000", "00:00:07.000", None, "話者不明の発言"),
+        cue_data = [
+            ("00:00:01.000", "00:00:03.000", "田中", "田中の発言です"),
+            ("00:00:03.000", "00:00:05.000", "佐藤", "佐藤の発言です"),
+            ("00:00:05.000", "00:00:07.000", None, "話者不明の発言"),
         ]
+        cues = self._create_test_cues(cue_data)
+        result = self._test_preprocessing(
+            preprocessor,
+            cues,
+            expected_count=3,
+            expected_speakers=["田中", "佐藤", None],
+        )
 
-        result = preprocessor.preprocess_cues(cues)
-
-        assert len(result) == 3
         assert result[0].speaker == "田中"
         assert result[1].speaker == "佐藤"
         assert result[2].speaker is None
 
     def test_time_preservation(self, preprocessor: TextPreprocessor) -> None:
         """Test that timing information is preserved during preprocessing."""
-        cues = [
-            VTTCue("00:00:01.000", "00:00:03.000", "田中", "最初の発言内容"),
-            VTTCue("00:00:03.500", "00:00:05.500", "田中", "続きの発言内容"),
+        cue_data = [
+            ("00:00:01.000", "00:00:03.000", "田中", "最初の発言内容"),
+            ("00:00:03.500", "00:00:05.500", "田中", "続きの発言内容"),
         ]
-
-        result = preprocessor.preprocess_cues(cues)
+        cues = self._create_test_cues(cue_data)
+        result = self._test_preprocessing(preprocessor, cues, expected_count=1)
 
         # Should merge consecutive cues from same speaker
-        assert len(result) == 1
         assert result[0].start_time == "00:00:01.000"
         assert result[0].end_time == "00:00:05.500"  # End time of last merged cue
 
@@ -350,27 +386,39 @@ class TestTextPreprocessor:
 class TestFilterWordsFile:
     """Test cases for filter words file functionality."""
 
-    def test_load_filler_words_from_file(self) -> None:
-        """Test loading filler words from a file."""
-        # Create a temporary filter words file
+    def _create_temp_filter_file(self, content: list[str]) -> Path:
+        """Helper to create temporary filter file with given content."""
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".txt", delete=False, encoding="utf-8"
         ) as f:
-            f.write("# Test filter words file\n")
-            f.write("えー\n")
-            f.write("um\n")
-            f.write("\n")  # Empty line
-            f.write("# Another comment\n")
-            f.write("test_word\n")
-            temp_path = Path(f.name)
+            for line in content:
+                f.write(line + "\n")
+            return Path(f.name)
+
+    def _test_filter_file_loading(
+        self, file_content: list[str], expected_words: set[str]
+    ) -> None:
+        """Helper to test filter file loading with given content and expected result."""
+        temp_path = self._create_temp_filter_file(file_content)
 
         try:
             config = PreprocessingConfig(filler_words_file=temp_path)
-
-            expected_words = {"えー", "um", "test_word"}
             assert config.filler_words == expected_words
         finally:
-            temp_path.unlink()  # Clean up
+            temp_path.unlink()
+
+    def test_load_filler_words_from_file(self) -> None:
+        """Test loading filler words from a file."""
+        file_content = [
+            "# Test filter words file",
+            "えー",
+            "um",
+            "",  # Empty line
+            "# Another comment",
+            "test_word",
+        ]
+        expected_words = {"えー", "um", "test_word"}
+        self._test_filter_file_loading(file_content, expected_words)
 
     def test_load_filler_words_file_not_found(self) -> None:
         """Test error handling when filter words file doesn't exist."""
@@ -397,21 +445,14 @@ class TestFilterWordsFile:
 
     def test_load_filler_words_with_unicode(self) -> None:
         """Test loading Japanese and other unicode filler words."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False, encoding="utf-8"
-        ) as f:
-            f.write("あのー\n")
-            f.write("そうですね\n")
-            f.write("café\n")  # With accent
-            f.write("naïve\n")  # With diaeresis
-            temp_path = Path(f.name)
-
-        try:
-            config = PreprocessingConfig(filler_words_file=temp_path)
-            expected_words = {"あのー", "そうですね", "café", "naïve"}
-            assert config.filler_words == expected_words
-        finally:
-            temp_path.unlink()
+        file_content = [
+            "あのー",
+            "そうですね",
+            "café",  # With accent
+            "naïve",  # With diaeresis
+        ]
+        expected_words = {"あのー", "そうですね", "café", "naïve"}
+        self._test_filter_file_loading(file_content, expected_words)
 
     def test_filler_words_file_overrides_default(self) -> None:
         """Test that filler words file overrides default words."""

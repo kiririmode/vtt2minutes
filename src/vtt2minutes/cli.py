@@ -139,6 +139,47 @@ def _execute_operation_with_verbose_output[T](
     return result
 
 
+class FileOperationConfig:
+    """Configuration for file operations with standard descriptions."""
+
+    def __init__(self, task_desc: str, success_desc: str, error_prefix: str) -> None:
+        self.task_desc = task_desc
+        self.success_desc = success_desc
+        self.error_prefix = error_prefix
+
+
+def _execute_configured_operation[T](
+    config: FileOperationConfig,
+    progress: Progress,
+    operation: Callable[[], T],
+    verbose: bool,
+    verbose_callback: Callable[[T], None] | None = None,
+) -> T:
+    """Execute operation using a configuration object."""
+    return _execute_operation_with_verbose_output(
+        progress=progress,
+        task_desc=config.task_desc,
+        success_desc=config.success_desc,
+        error_prefix=config.error_prefix,
+        operation=operation,
+        verbose=verbose,
+        verbose_callback=verbose_callback,
+    )
+
+
+_PARSING_CONFIG = FileOperationConfig(
+    task_desc="VTTファイルを解析中...",
+    success_desc="✓ VTTファイル解析完了",
+    error_prefix="VTTファイルの解析に失敗しました",
+)
+
+_SAVE_CONFIG = FileOperationConfig(
+    task_desc="中間ファイルを保存中...",
+    success_desc="✓ 中間ファイル保存完了",
+    error_prefix="中間ファイルの保存に失敗しました",
+)
+
+
 def _initialize_components(
     min_duration: float,
     merge_threshold: float,
@@ -163,11 +204,9 @@ def _parse_vtt_file(
     parser: VTTParser, input_file: Path, progress: Progress, verbose: bool
 ) -> list[VTTCue]:
     """Parse VTT file and return cues."""
-    return _execute_operation_with_verbose_output(
+    return _execute_configured_operation(
+        config=_PARSING_CONFIG,
         progress=progress,
-        task_desc="VTTファイルを解析中...",
-        success_desc="✓ VTTファイル解析完了",
-        error_prefix="VTTファイルの解析に失敗しました",
         operation=lambda: parser.parse_file(input_file),
         verbose=verbose,
         verbose_callback=lambda result: _display_parsing_results(parser, result),
@@ -235,11 +274,9 @@ def _save_intermediate_file(
     overwrite: bool = False,
 ) -> Path:
     """Save intermediate markdown file."""
-    return _execute_operation_with_verbose_output(
+    return _execute_configured_operation(
+        config=_SAVE_CONFIG,
         progress=progress,
-        task_desc="中間ファイルを保存中...",
-        success_desc="✓ 中間ファイル保存完了",
-        error_prefix="中間ファイルの保存に失敗しました",
         operation=lambda: _save_intermediate_operation(
             cues, output, intermediate_file, title, overwrite
         ),
