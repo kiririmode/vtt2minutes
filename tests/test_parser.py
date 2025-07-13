@@ -49,14 +49,17 @@ class TestVTTParser:
 
     def _parse_and_assert_count(
         self, parser: VTTParser, content: str, expected_count: int
-    ) -> list:
+    ) -> list[VTTCue]:
         """Helper method to parse content and assert cue count."""
         cues = parser.parse_content(content)
         assert len(cues) == expected_count
         return cues
 
     def _assert_single_cue_properties(
-        self, cue, expected_text: str | None = None, expected_speaker: str | None = None
+        self,
+        cue: VTTCue,
+        expected_text: str | None = None,
+        expected_speaker: str | None = None,
     ) -> None:
         """Helper method to assert properties of a single cue."""
         if expected_text is not None:

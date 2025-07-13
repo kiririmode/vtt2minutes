@@ -14,7 +14,7 @@ class TestIntermediateTranscriptWriter:
         self,
         cues: list[VTTCue],
         title: str,
-        metadata: dict[str, any] | None = None,
+        metadata: dict[str, str | list[str]] | None = None,
         assertions: list[str] | None = None,
     ) -> None:
         """Helper to create temp file, write markdown, and run assertions."""

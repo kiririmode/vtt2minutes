@@ -73,7 +73,7 @@ class TestWordReplacement:
 
     def test_empty_replacement_rules(self) -> None:
         """Test behavior with empty replacement rules."""
-        rules = {}  # Empty rules
+        rules: dict[str, str] = {}  # Empty rules
         input_text = "ベッドロックについて話します。"
         expected_output = "ベッドロックについて話します。"  # Should remain unchanged
         self._test_word_replacement(rules, input_text, expected_output)
