@@ -47,6 +47,26 @@ class TestVTTCue:
 class TestVTTParser:
     """Test cases for VTTParser class."""
 
+    def _parse_and_assert_count(
+        self, parser: VTTParser, content: str, expected_count: int
+    ) -> list[VTTCue]:
+        """Helper method to parse content and assert cue count."""
+        cues = parser.parse_content(content)
+        assert len(cues) == expected_count
+        return cues
+
+    def _assert_single_cue_properties(
+        self,
+        cue: VTTCue,
+        expected_text: str | None = None,
+        expected_speaker: str | None = None,
+    ) -> None:
+        """Helper method to assert properties of a single cue."""
+        if expected_text is not None:
+            assert cue.text == expected_text
+        if expected_speaker is not None:
+            assert cue.speaker == expected_speaker
+
     @pytest.fixture
     def parser(self) -> VTTParser:
         """Create a VTTParser instance for testing."""
@@ -151,11 +171,10 @@ NOTE This is a comment line
 00:00:01.000 --> 00:00:03.000
 <v Speaker>This has <b>bold</b> and <i>italic</i> text
 """
-        cues = parser.parse_content(content)
-
-        assert len(cues) == 1
-        assert cues[0].text == "This has bold and italic text"
-        assert cues[0].speaker == "Speaker"
+        cues = self._parse_and_assert_count(parser, content, 1)
+        self._assert_single_cue_properties(
+            cues[0], "This has bold and italic text", "Speaker"
+        )
 
     def test_multiline_cue_text(self, parser: VTTParser) -> None:
         """Test parsing cues with multiple lines of text."""
@@ -166,11 +185,9 @@ NOTE This is a comment line
 Second line of text
 Third line of text
 """
-        cues = parser.parse_content(content)
-
-        assert len(cues) == 1
-        assert (
-            cues[0].text == "First line of text Second line of text Third line of text"
+        cues = self._parse_and_assert_count(parser, content, 1)
+        self._assert_single_cue_properties(
+            cues[0], "First line of text Second line of text Third line of text"
         )
 
     def test_get_speakers(self, parser: VTTParser, sample_vtt_content: str) -> None:
@@ -235,10 +252,8 @@ Third line of text
 00:00:01.000 --> 00:00:03.000
 <v Speaker>Text   with    multiple     spaces
 """
-        cues = parser.parse_content(content)
-
-        assert len(cues) == 1
-        assert cues[0].text == "Text with multiple spaces"
+        cues = self._parse_and_assert_count(parser, content, 1)
+        self._assert_single_cue_properties(cues[0], "Text with multiple spaces")
 
     def test_empty_cue_handling(self, parser: VTTParser) -> None:
         """Test handling of empty cues."""
@@ -250,11 +265,9 @@ Third line of text
 00:00:04.000 --> 00:00:06.000
 <v Speaker>Actual content
 """
-        cues = parser.parse_content(content)
-
         # Should only have one cue (empty cue should be ignored)
-        assert len(cues) == 1
-        assert cues[0].text == "Actual content"
+        cues = self._parse_and_assert_count(parser, content, 1)
+        self._assert_single_cue_properties(cues[0], "Actual content")
 
     def test_timing_line_variations(self, parser: VTTParser) -> None:
         """Test various timing line formats."""

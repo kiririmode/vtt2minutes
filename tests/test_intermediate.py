@@ -10,6 +10,40 @@ from vtt2minutes.parser import VTTCue
 class TestIntermediateTranscriptWriter:
     """Test cases for IntermediateTranscriptWriter."""
 
+    def _create_temp_file_and_test_markdown(
+        self,
+        cues: list[VTTCue],
+        title: str,
+        metadata: dict[str, str | list[str]] | None = None,
+        assertions: list[str] | None = None,
+    ) -> None:
+        """Helper to create temp file, write markdown, and run assertions."""
+        writer = IntermediateTranscriptWriter()
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            temp_path = Path(f.name)
+
+        try:
+            if metadata is not None:
+                writer.write_markdown(cues, temp_path, title, metadata)
+            else:
+                writer.write_markdown(cues, temp_path, title)
+
+            assert temp_path.exists()
+            content = temp_path.read_text(encoding="utf-8")
+
+            # Common assertions
+            assert f"# {title}" in content
+            assert "## 発言記録" in content
+
+            # Custom assertions
+            if assertions:
+                for assertion in assertions:
+                    assert assertion in content
+
+        finally:
+            temp_path.unlink()
+
     def create_sample_cues(self) -> list[VTTCue]:
         """Create sample VTT cues for testing."""
         return [
@@ -40,80 +74,41 @@ class TestIntermediateTranscriptWriter:
 
     def test_write_markdown_basic(self) -> None:
         """Test basic markdown file generation."""
-        writer = IntermediateTranscriptWriter()
         cues = self.create_sample_cues()
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-            temp_path = Path(f.name)
-
-        try:
-            writer.write_markdown(cues, temp_path, "Test Meeting")
-
-            # Check that file was created and has content
-            assert temp_path.exists()
-            content = temp_path.read_text(encoding="utf-8")
-
-            # Check basic structure
-            assert "# Test Meeting" in content
-            assert "## 発言記録" in content
-            assert "### Alice" in content
-            assert "### Bob" in content
-            assert "Hello everyone, welcome to the meeting." in content
-            assert "Thank you Alice. Let's start with the agenda." in content
-
-        finally:
-            temp_path.unlink()
+        assertions = [
+            "### Alice",
+            "### Bob",
+            "Hello everyone, welcome to the meeting.",
+            "Thank you Alice. Let's start with the agenda.",
+        ]
+        self._create_temp_file_and_test_markdown(
+            cues, "Test Meeting", assertions=assertions
+        )
 
     def test_write_markdown_with_metadata(self) -> None:
         """Test markdown generation with metadata."""
-        writer = IntermediateTranscriptWriter()
         cues = self.create_sample_cues()
-
         metadata = {
             "date": "2024-01-15",
             "participants": ["Alice", "Bob", "Charlie"],
             "duration": "00:15:30",
         }
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-            temp_path = Path(f.name)
-
-        try:
-            writer.write_markdown(cues, temp_path, "Project Meeting", metadata)
-
-            content = temp_path.read_text(encoding="utf-8")
-
-            # Check metadata appears in content
-            assert "**日時:** 2024-01-15" in content
-            assert "**参加者:** Alice, Bob, Charlie" in content
-            assert "**総時間:** 00:15:30" in content
-
-        finally:
-            temp_path.unlink()
+        assertions = [
+            "**日時:** 2024-01-15",
+            "**参加者:** Alice, Bob, Charlie",
+            "**総時間:** 00:15:30",
+        ]
+        self._create_temp_file_and_test_markdown(
+            cues, "Project Meeting", metadata, assertions
+        )
 
     def test_write_markdown_empty_cues(self) -> None:
         """Test markdown generation with empty cue list."""
-        writer = IntermediateTranscriptWriter()
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-            temp_path = Path(f.name)
-
-        try:
-            writer.write_markdown([], temp_path, "Empty Meeting")
-
-            content = temp_path.read_text(encoding="utf-8")
-
-            # Should still have basic structure
-            assert "# Empty Meeting" in content
-            assert "## 発言記録" in content
-
-        finally:
-            temp_path.unlink()
+        # Basic structure assertions are handled by helper method
+        self._create_temp_file_and_test_markdown([], "Empty Meeting")
 
     def test_write_markdown_no_speaker(self) -> None:
         """Test markdown generation with cues that have no speaker."""
-        writer = IntermediateTranscriptWriter()
-
         cues = [
             VTTCue(
                 start_time="00:00:00.000",
@@ -122,21 +117,10 @@ class TestIntermediateTranscriptWriter:
                 speaker=None,
             ),
         ]
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
-            temp_path = Path(f.name)
-
-        try:
-            writer.write_markdown(cues, temp_path, "System Meeting")
-
-            content = temp_path.read_text(encoding="utf-8")
-
-            # Should use default speaker name
-            assert "### 話者不明" in content
-            assert "System notification message." in content
-
-        finally:
-            temp_path.unlink()
+        assertions = ["### 話者不明", "System notification message."]
+        self._create_temp_file_and_test_markdown(
+            cues, "System Meeting", assertions=assertions
+        )
 
     def test_generate_markdown_content(self) -> None:
         """Test markdown content generation."""

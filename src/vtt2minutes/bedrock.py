@@ -381,26 +381,27 @@ class BedrockMeetingMinutesGenerator:
         Returns:
             Hardcoded prompt string
         """
-        return (
-            f"以下の前処理済み会議記録から、構造化された議事録を作成してください。\n\n"
-            f"要件:\n"
-            f"1. 議題、決定事項、アクションアイテムを明確に抽出する\n"
-            f"2. 発言者の意図を正確に反映する\n"
-            f"3. 時系列順に整理する\n"
-            f"4. 重要なポイントを強調する\n"
-            f"5. Markdown形式で出力する\n\n"
-            f"タイトル: {title}\n\n"
-            f"前処理済み会議記録:\n{markdown_content}\n\n"
-            f"以下の構造で議事録を作成してください:\n"
-            f"- # タイトル\n"
-            f"- ## 会議概要 (日時、参加者、目的)\n"
-            f"- ## 主要な議題\n"
-            f"- ## 決定事項\n"
-            f"- ## アクションアイテム\n"
-            f"- ## 次回までの課題\n"
-            f"- ## 詳細な議論内容\n\n"
-            f"議事録:"
+        template = (
+            "以下の前処理済み会議記録から、構造化された議事録を作成してください。\n\n"
+            "要件:\n"
+            "1. 議題、決定事項、アクションアイテムを明確に抽出する\n"
+            "2. 発言者の意図を正確に反映する\n"
+            "3. 時系列順に整理する\n"
+            "4. 重要なポイントを強調する\n"
+            "5. Markdown形式で出力する\n\n"
+            "タイトル: {title}\n\n"
+            "前処理済み会議記録:\n{markdown_content}\n\n"
+            "以下の構造で議事録を作成してください:\n"
+            "- # タイトル\n"
+            "- ## 会議概要 (日時、参加者、目的)\n"
+            "- ## 主要な議題\n"
+            "- ## 決定事項\n"
+            "- ## アクションアイテム\n"
+            "- ## 次回までの課題\n"
+            "- ## 詳細な議論内容\n\n"
+            "議事録:"
         )
+        return self._substitute_placeholders(template, markdown_content, title)
 
     def _substitute_placeholders(
         self, template: str, markdown_content: str, title: str
@@ -494,25 +495,45 @@ class BedrockMeetingMinutesGenerator:
         """
         try:
             response_body = json.loads(response["body"].read())
-
-            # Handle Claude models
-            model_identifier = self.model_id or self.inference_profile_id
-            if model_identifier and "claude" in model_identifier.lower():
-                if response_body.get("content"):
-                    return response_body["content"][0]["text"]
-                else:
-                    raise BedrockError("No content found in Claude response")
-
-            # Handle other models (Titan, etc.)
-            elif "results" in response_body:
-                return response_body["results"][0]["outputText"]
-            elif "outputText" in response_body:
-                return response_body["outputText"]
-            else:
-                raise BedrockError(f"Unknown response format: {response_body}")
-
+            return self._parse_response_body(response_body)
         except (json.JSONDecodeError, KeyError, IndexError) as e:
             raise BedrockError(f"Failed to parse Bedrock response: {e}") from e
+
+    def _parse_response_body(self, response_body: dict[str, Any]) -> str:
+        """Parse the response body to extract text content.
+
+        Args:
+            response_body: Parsed JSON response body
+
+        Returns:
+            Extracted text content
+
+        Raises:
+            BedrockError: If response format is unknown
+        """
+        # Handle Claude models
+        model_identifier = self.model_id or self.inference_profile_id
+        if model_identifier and "claude" in model_identifier.lower():
+            return self._extract_claude_response(response_body)
+
+        # Handle other models (Titan, etc.)
+        return self._extract_standard_response(response_body)
+
+    def _extract_claude_response(self, response_body: dict[str, Any]) -> str:
+        """Extract text from Claude model response."""
+        if response_body.get("content"):
+            return response_body["content"][0]["text"]
+        else:
+            raise BedrockError("No content found in Claude response")
+
+    def _extract_standard_response(self, response_body: dict[str, Any]) -> str:
+        """Extract text from standard model response."""
+        if "results" in response_body:
+            return response_body["results"][0]["outputText"]
+        elif "outputText" in response_body:
+            return response_body["outputText"]
+        else:
+            raise BedrockError(f"Unknown response format: {response_body}")
 
     def get_available_models(self) -> list[str]:
         """Get list of available Bedrock models.

@@ -32,7 +32,7 @@ print_info() {
 THRESHOLD=0.7
 MIN_LINES=8
 PRINT_CODE=false
-SOURCE_DIR="src/vtt2minutes"
+SOURCE_DIRS=("src/vtt2minutes" "tests")
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -82,44 +82,54 @@ if ! command -v similarity-py &> /dev/null; then
 fi
 
 # Ensure we're in the project root
-if [ ! -d "$SOURCE_DIR" ]; then
-    print_error "Source directory '$SOURCE_DIR' not found"
-    echo "Please run this script from the project root directory"
-    exit 1
-fi
+for SOURCE_DIR in "${SOURCE_DIRS[@]}"; do
+    if [ ! -d "$SOURCE_DIR" ]; then
+        print_error "Source directory '$SOURCE_DIR' not found"
+        echo "Please run this script from the project root directory"
+        exit 1
+    fi
+done
 
 echo "🔍 VTT2Minutes Code Similarity Analysis"
 echo "======================================="
 echo ""
-print_info "Analyzing source directory: $SOURCE_DIR"
+print_info "Analyzing directories: ${SOURCE_DIRS[*]}"
 print_info "Similarity threshold: $THRESHOLD"
 print_info "Minimum function lines: $MIN_LINES"
 print_info "Print code: $PRINT_CODE"
 echo ""
 
-# Build similarity-py command
-SIMILARITY_CMD="similarity-py $SOURCE_DIR --threshold $THRESHOLD --min-lines $MIN_LINES"
+# Run similarity analysis for each directory
+OVERALL_SUCCESS=true
 
-if [ "$PRINT_CODE" = true ]; then
-    SIMILARITY_CMD="$SIMILARITY_CMD --print"
-fi
-
-# Run similarity analysis
-print_info "Running similarity analysis..."
-echo ""
-
-# Execute the similarity check
-if $SIMILARITY_CMD; then
+for SOURCE_DIR in "${SOURCE_DIRS[@]}"; do
+    print_info "Analyzing directory: $SOURCE_DIR"
     echo ""
-    print_status "Similarity analysis completed successfully"
+    
+    # Build similarity-py command
+    SIMILARITY_CMD="similarity-py $SOURCE_DIR --threshold $THRESHOLD --min-lines $MIN_LINES"
+    
+    if [ "$PRINT_CODE" = true ]; then
+        SIMILARITY_CMD="$SIMILARITY_CMD --print"
+    fi
+    
+    # Execute the similarity check
+    if ! $SIMILARITY_CMD; then
+        print_error "Similarity analysis failed for $SOURCE_DIR"
+        OVERALL_SUCCESS=false
+    fi
+    echo ""
+done
+
+if [ "$OVERALL_SUCCESS" = true ]; then
+    print_status "Similarity analysis completed successfully for all directories"
     echo ""
     print_info "Summary:"
     echo "  - Functions with similarity ≥ $THRESHOLD were reported above"
     echo "  - Consider refactoring highly similar functions to reduce duplication"
     echo "  - Some similarity is expected in error handling and boilerplate code"
 else
-    echo ""
-    print_error "Similarity analysis failed"
+    print_error "Similarity analysis failed for one or more directories"
     exit 1
 fi
 

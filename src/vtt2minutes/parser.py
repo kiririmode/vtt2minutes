@@ -1,6 +1,7 @@
 """VTT file parser for Microsoft Teams transcripts."""
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -343,6 +344,20 @@ class VTTParser:
             return 0.0
         return cues[-1].end_seconds - cues[0].start_seconds
 
+    def _filter_cues(
+        self, cues: list[VTTCue], predicate: Callable[[VTTCue], bool]
+    ) -> list[VTTCue]:
+        """Generic filter function for cues.
+
+        Args:
+            cues: List of VTTCue objects
+            predicate: Function that returns True for cues to include
+
+        Returns:
+            Filtered list of cues
+        """
+        return [cue for cue in cues if predicate(cue)]
+
     def filter_by_speaker(self, cues: list[VTTCue], speaker: str) -> list[VTTCue]:
         """Filter cues by speaker name.
 
@@ -353,7 +368,7 @@ class VTTParser:
         Returns:
             List of cues from the specified speaker
         """
-        return [cue for cue in cues if cue.speaker == speaker]
+        return self._filter_cues(cues, lambda cue: cue.speaker == speaker)
 
     def filter_by_time_range(
         self, cues: list[VTTCue], start_seconds: float, end_seconds: float
@@ -368,8 +383,38 @@ class VTTParser:
         Returns:
             List of cues within the time range
         """
-        return [
-            cue
-            for cue in cues
-            if cue.start_seconds >= start_seconds and cue.end_seconds <= end_seconds
-        ]
+
+        def time_range_predicate(cue: VTTCue) -> bool:
+            return cue.start_seconds >= start_seconds and cue.end_seconds <= end_seconds
+
+        return self._filter_cues(cues, time_range_predicate)
+
+    def filter_by_criteria(
+        self,
+        cues: list[VTTCue],
+        speaker: str | None = None,
+        start_seconds: float | None = None,
+        end_seconds: float | None = None,
+    ) -> list[VTTCue]:
+        """Filter cues by multiple criteria.
+
+        Args:
+            cues: List of VTTCue objects
+            speaker: Optional speaker name to filter by
+            start_seconds: Optional start time filter
+            end_seconds: Optional end time filter
+
+        Returns:
+            List of cues matching all specified criteria
+        """
+
+        def combined_predicate(cue: VTTCue) -> bool:
+            if speaker is not None and cue.speaker != speaker:
+                return False
+            if start_seconds is not None and cue.start_seconds < start_seconds:
+                return False
+            if end_seconds is not None and cue.end_seconds > end_seconds:
+                return False
+            return True
+
+        return self._filter_cues(cues, combined_predicate)

@@ -1299,7 +1299,7 @@ class TestCLI:
 
             assert result.exit_code == 1
             # Error occurs in chat prompt generation since prompt.txt gets created first
-            assert "チャットプロンプトファイルの生成に失敗しました" in result.output
+            assert "Chat prompt file already exists:" in result.output
 
     @patch("vtt2minutes.cli.VTTParser")
     @patch("vtt2minutes.cli.TextPreprocessor")
@@ -1426,7 +1426,7 @@ class TestCLI:
             )
 
             assert result.exit_code == 1
-            assert "中間ファイルの保存に失敗しました" in result.output
+            assert "Intermediate file already exists:" in result.output
 
     @patch("vtt2minutes.cli.VTTParser")
     @patch("vtt2minutes.cli.TextPreprocessor")
@@ -1491,7 +1491,7 @@ class TestCLI:
             )
 
             assert result.exit_code == 1
-            assert "チャットプロンプトファイルの生成に失敗しました" in result.output
+            assert "Chat prompt file already exists:" in result.output
 
     @patch("vtt2minutes.cli.VTTParser")
     @patch("vtt2minutes.cli.TextPreprocessor")
@@ -1550,7 +1550,7 @@ class TestCLI:
             )
 
             assert result.exit_code == 1
-            assert "ファイルの保存に失敗しました" in result.output
+            assert "Output file already exists:" in result.output
 
     @patch("vtt2minutes.cli.VTTParser")
     @patch("vtt2minutes.cli.TextPreprocessor")

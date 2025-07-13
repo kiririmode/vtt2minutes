@@ -235,27 +235,34 @@ class TextPreprocessor:
 
         return [cue for cue in final_cues if cue.text.strip()]
 
-    def _clean_cue(self, cue: VTTCue) -> VTTCue:
+    def _clean_cue(self, cue: VTTCue, final_cleanup: bool = False) -> VTTCue:
         """Clean a single VTT cue.
 
         Args:
             cue: VTTCue to clean
+            final_cleanup: Whether this is final cleanup (limited processing)
 
         Returns:
             Cleaned VTTCue
         """
         text = cue.text
 
-        # Apply word replacement if enabled
-        if self.config.enable_word_replacement:
-            text = self._apply_word_replacement(text)
+        if final_cleanup:
+            # Final cleanup: only punctuation and normalization
+            text = self._remove_extra_punctuation(text)
+            text = self._ensure_proper_endings(text)
+        else:
+            # Regular cleaning: full processing
+            # Apply word replacement if enabled
+            if self.config.enable_word_replacement:
+                text = self._apply_word_replacement(text)
 
-        # Remove filler words
-        text = self._remove_filler_words(text)
+            # Remove filler words
+            text = self._remove_filler_words(text)
 
-        # Fix transcription errors
-        if self.config.fix_transcription_errors:
-            text = self._fix_transcription_errors(text)
+            # Fix transcription errors
+            if self.config.fix_transcription_errors:
+                text = self._fix_transcription_errors(text)
 
         # Normalize whitespace appropriately for the language
         text = self._normalize_whitespace(text)
@@ -271,17 +278,25 @@ class TextPreprocessor:
         Returns:
             Text with normalized whitespace
         """
-        if re.search(r"[ひらがなカタカナ漢字]", text):
-            # For Japanese text, normalize spaces more carefully
-            # Remove multiple consecutive spaces but preserve natural breaks
-            text = re.sub(r"\s{2,}", " ", text)
-            # Remove spaces around Japanese punctuation
-            text = re.sub(r"\s*([。、！？])\s*", r"\1", text)
-            text = text.strip()
+        # Check if text contains Japanese characters
+        has_japanese = re.search(r"[ひらがなカタカナ漢字]", text) is not None
+
+        if has_japanese:
+            return self._normalize_japanese_whitespace(text)
         else:
-            # For non-Japanese text, normalize to single spaces
-            text = " ".join(text.split())
-        return text
+            return self._normalize_standard_whitespace(text)
+
+    def _normalize_japanese_whitespace(self, text: str) -> str:
+        """Normalize whitespace for Japanese text."""
+        # Remove multiple consecutive spaces but preserve natural breaks
+        text = re.sub(r"\s{2,}", " ", text)
+        # Remove spaces around Japanese punctuation
+        text = re.sub(r"\s*([。、！？])\s*", r"\1", text)
+        return text.strip()
+
+    def _normalize_standard_whitespace(self, text: str) -> str:
+        """Normalize whitespace for non-Japanese text."""
+        return " ".join(text.split())
 
     def _ensure_proper_endings(self, text: str) -> str:
         """Ensure proper sentence endings.
@@ -654,15 +669,7 @@ class TextPreprocessor:
         Returns:
             Final cleaned VTTCue
         """
-        text = cue.text
-
-        # Remove extra punctuation
-        text = self._remove_extra_punctuation(text)
-
-        # Ensure proper sentence endings
-        text = self._ensure_proper_endings(text)
-
-        return self._create_cleaned_cue(cue, text)
+        return self._clean_cue(cue, final_cleanup=True)
 
     def get_statistics(
         self, original_cues: list[VTTCue], processed_cues: list[VTTCue]

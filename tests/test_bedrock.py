@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -10,8 +11,113 @@ from botocore.exceptions import ClientError
 from vtt2minutes.bedrock import BedrockError, BedrockMeetingMinutesGenerator
 
 
+@pytest.fixture
+def bedrock_generator() -> BedrockMeetingMinutesGenerator:
+    """Shared fixture for BedrockMeetingMinutesGenerator setup."""
+    return BedrockMeetingMinutesGenerator(
+        aws_access_key_id="test_key",
+        aws_secret_access_key="test_secret",
+    )
+
+
+@pytest.fixture
+def bedrock_generator_with_inference_profile() -> BedrockMeetingMinutesGenerator:
+    """Shared fixture for BedrockMeetingMinutesGenerator with inference profile."""
+    return BedrockMeetingMinutesGenerator(
+        inference_profile_id="anthropic.claude-3-sonnet-20240229-v1:0",
+    )
+
+
 class TestBedrockMeetingMinutesGenerator:
     """Test cases for BedrockMeetingMinutesGenerator."""
+
+    def _create_generator(self, model_id: str) -> BedrockMeetingMinutesGenerator:
+        """Helper to create BedrockMeetingMinutesGenerator instance."""
+        return BedrockMeetingMinutesGenerator(
+            aws_access_key_id="test_key",
+            aws_secret_access_key="test_secret",
+            model_id=model_id,
+        )
+
+    def _create_mock_response(self, response_data: dict[str, Any]) -> dict[str, Any]:
+        """Helper to create mock response with given data."""
+        mock_response = {"body": Mock()}
+        mock_response["body"].read.return_value = json.dumps(response_data).encode()
+        return mock_response
+
+    def _setup_boto3_client_mock(self, mock_boto3: Mock) -> tuple[Mock, Mock]:
+        """Helper to setup boto3 client mocking with standard configuration.
+
+        Returns:
+            tuple[Mock, Mock]: (mock_runtime_client, mock_bedrock_client)
+        """
+        mock_runtime_client = Mock()
+        mock_bedrock_client = Mock()
+
+        def client_side_effect(service_name: str, **_kwargs: Any) -> Mock:
+            if service_name == "bedrock-runtime":
+                return mock_runtime_client
+            elif service_name == "bedrock":
+                return mock_bedrock_client
+            else:
+                raise ValueError(f"Unknown service: {service_name}")
+
+        mock_boto3.client.side_effect = client_side_effect
+        return mock_runtime_client, mock_bedrock_client
+
+    def _assert_api_error(
+        self,
+        generator: BedrockMeetingMinutesGenerator,
+        operation: str,
+        expected_message: str,
+        *args: Any,
+    ) -> None:
+        """Helper to assert API error behavior for any generator operation.
+
+        Args:
+            generator: The BedrockMeetingMinutesGenerator instance
+            operation: The operation name to call
+                (e.g., 'generate_minutes_from_markdown')
+            expected_message: Expected error message pattern
+            *args: Arguments to pass to the operation
+        """
+        operation_method = getattr(generator, operation)
+        with pytest.raises(BedrockError, match=expected_message):
+            operation_method(*args)
+
+    def _setup_api_error_test(
+        self,
+        mock_boto3: Mock,
+        service_method: str,
+        error_code: str,
+        operation_name: str,
+    ) -> BedrockMeetingMinutesGenerator:
+        """Helper to setup API error test with common pattern.
+
+        Args:
+            mock_boto3: Mocked boto3
+            service_method: Method to mock
+                (e.g., 'invoke_model', 'list_foundation_models')
+            error_code: AWS error code (e.g., 'ValidationException')
+            operation_name: AWS operation name for error (e.g., 'InvokeModel')
+
+        Returns:
+            BedrockMeetingMinutesGenerator: Configured generator instance
+        """
+        if service_method == "invoke_model":
+            mock_client = Mock()
+            mock_boto3.client.return_value = mock_client
+            error = ClientError({"Error": {"Code": error_code}}, operation_name)
+            mock_client.invoke_model.side_effect = error
+        else:
+            _, mock_bedrock_client = self._setup_boto3_client_mock(mock_boto3)
+            error = ClientError({"Error": {"Code": error_code}}, operation_name)
+            getattr(mock_bedrock_client, service_method).side_effect = error
+
+        return BedrockMeetingMinutesGenerator(
+            aws_access_key_id="test_key",
+            aws_secret_access_key="test_secret",
+        )
 
     def test_init_with_credentials(self) -> None:
         """Test initialization with provided credentials."""
@@ -75,42 +181,34 @@ class TestBedrockMeetingMinutesGenerator:
         # Should not raise any exception
         assert generator is not None
 
+    @pytest.mark.parametrize(
+        "error_code,region_name",
+        [
+            ("UnauthorizedOperation", None),
+            ("InvalidRequestException", "invalid-region"),
+        ],
+    )
     @patch("vtt2minutes.bedrock.boto3")
-    def test_validate_bedrock_access_unauthorized(self, mock_boto3: Mock) -> None:
-        """Test access validation with unauthorized error."""
+    def test_validate_bedrock_access_error(
+        self, mock_boto3: Mock, error_code: str, region_name: str | None
+    ) -> None:
+        """Test access validation with various error types."""
         mock_client = Mock()
         mock_boto3.client.return_value = mock_client
 
-        error = ClientError(
-            {"Error": {"Code": "UnauthorizedOperation"}}, "ListFoundationModels"
-        )
+        error = ClientError({"Error": {"Code": error_code}}, "ListFoundationModels")
         mock_client.list_foundation_models.side_effect = error
 
-        with pytest.raises(ValueError, match="Failed to initialize Bedrock client"):
-            BedrockMeetingMinutesGenerator(
-                aws_access_key_id="test_key",
-                aws_secret_access_key="test_secret",
-                validate_access=True,
-            )
-
-    @patch("vtt2minutes.bedrock.boto3")
-    def test_validate_bedrock_access_invalid_region(self, mock_boto3: Mock) -> None:
-        """Test access validation with invalid region error."""
-        mock_client = Mock()
-        mock_boto3.client.return_value = mock_client
-
-        error = ClientError(
-            {"Error": {"Code": "InvalidRequestException"}}, "ListFoundationModels"
-        )
-        mock_client.list_foundation_models.side_effect = error
+        kwargs = {
+            "aws_access_key_id": "test_key",
+            "aws_secret_access_key": "test_secret",
+            "validate_access": True,
+        }
+        if region_name:
+            kwargs["region_name"] = region_name
 
         with pytest.raises(ValueError, match="Failed to initialize Bedrock client"):
-            BedrockMeetingMinutesGenerator(
-                aws_access_key_id="test_key",
-                aws_secret_access_key="test_secret",
-                region_name="invalid-region",
-                validate_access=True,
-            )
+            BedrockMeetingMinutesGenerator(**kwargs)  # type: ignore[misc]
 
     def test_create_prompt_japanese(self) -> None:
         """Test Japanese prompt creation."""
@@ -127,32 +225,30 @@ class TestBedrockMeetingMinutesGenerator:
         assert "Test Meeting" in prompt
         assert "Test Content" in prompt
 
-    def test_create_chat_prompt_default_title(self) -> None:
-        """Test chat prompt creation with default title."""
+    @pytest.mark.parametrize(
+        "title,expected_title",
+        [
+            (None, "会議議事録"),  # Default title case
+            ("Custom Meeting Title", "Custom Meeting Title"),  # Custom title case
+        ],
+    )
+    def test_create_chat_prompt_with_title(
+        self, title: str | None, expected_title: str
+    ) -> None:
+        """Test chat prompt creation with default and custom titles."""
         generator = BedrockMeetingMinutesGenerator(
             aws_access_key_id="test_key",
             aws_secret_access_key="test_secret",
         )
 
         markdown_content = "# Test Content\nSpeaker: Hello"
-        prompt = generator.create_chat_prompt(markdown_content)
+        if title is None:
+            prompt = generator.create_chat_prompt(markdown_content)
+        else:
+            prompt = generator.create_chat_prompt(markdown_content, title)
 
         assert "以下をセクションとする議事録を作成してください" in prompt
-        assert "会議議事録" in prompt  # Default title
-        assert "Test Content" in prompt
-
-    def test_create_chat_prompt_custom_title(self) -> None:
-        """Test chat prompt creation with custom title."""
-        generator = BedrockMeetingMinutesGenerator(
-            aws_access_key_id="test_key",
-            aws_secret_access_key="test_secret",
-        )
-
-        markdown_content = "# Test Content\nSpeaker: Hello"
-        prompt = generator.create_chat_prompt(markdown_content, "Custom Meeting Title")
-
-        assert "以下をセクションとする議事録を作成してください" in prompt
-        assert "Custom Meeting Title" in prompt
+        assert expected_title in prompt
         assert "Test Content" in prompt
 
     def test_create_chat_prompt_with_custom_template(self, tmp_path: Path) -> None:
@@ -195,116 +291,101 @@ class TestBedrockMeetingMinutesGenerator:
         assert "Test Meeting" in prompt
         assert "Test Content" in prompt
 
-    @patch("vtt2minutes.bedrock.boto3")
-    def test_invoke_model_claude(self, mock_boto3: Mock) -> None:
-        """Test model invocation for Claude models."""
-        mock_client = Mock()
-        mock_boto3.client.return_value = mock_client
+    def _setup_invoke_model_test(
+        self, model_id: str, mock_response_data: dict[str, Any]
+    ) -> tuple[Mock, BedrockMeetingMinutesGenerator]:
+        """Helper method to set up common test components for model invocation tests."""
+        with patch("vtt2minutes.bedrock.boto3") as mock_boto3:
+            mock_client = Mock()
+            mock_boto3.client.return_value = mock_client
 
-        generator = BedrockMeetingMinutesGenerator(
-            aws_access_key_id="test_key",
-            aws_secret_access_key="test_secret",
-            model_id="anthropic.claude-3-haiku-20240307-v1:0",
+            generator = BedrockMeetingMinutesGenerator(
+                aws_access_key_id="test_key",
+                aws_secret_access_key="test_secret",
+                model_id=model_id,
+            )
+
+            mock_response = {"body": Mock()}
+            mock_response["body"].read.return_value = json.dumps(
+                mock_response_data
+            ).encode()
+            mock_client.invoke_model.return_value = mock_response
+
+            return mock_client, generator
+
+    @pytest.mark.parametrize(
+        "model_id,mock_response_data,expected_body_keys",
+        [
+            (
+                "anthropic.claude-3-haiku-20240307-v1:0",
+                {"anthropic_version": "bedrock-2023-05-31"},
+                ["anthropic_version", "messages"],
+            ),
+            (
+                "amazon.titan-text-express-v1",
+                {"results": [{"outputText": "test response"}]},
+                ["inputText", "textGenerationConfig"],
+            ),
+        ],
+    )
+    def test_invoke_model(
+        self,
+        model_id: str,
+        mock_response_data: dict[str, Any],
+        expected_body_keys: list[str],
+    ) -> None:
+        """Test model invocation for different model types."""
+        mock_client, generator = self._setup_invoke_model_test(
+            model_id, mock_response_data
         )
-
-        mock_response = {"body": Mock()}
-        mock_response["body"].read.return_value = json.dumps(
-            {"anthropic_version": "bedrock-2023-05-31"}
-        ).encode()
-        mock_client.invoke_model.return_value = mock_response
 
         result = generator._invoke_model("test prompt")
 
-        assert result == mock_response
+        assert result == mock_client.invoke_model.return_value
         mock_client.invoke_model.assert_called_once()
 
-        # Check that the request body contains Claude-specific format
+        # Check that the request body contains expected format
         call_args = mock_client.invoke_model.call_args
         body = json.loads(call_args[1]["body"])
-        assert "anthropic_version" in body
-        assert "messages" in body
+        for key in expected_body_keys:
+            assert key in body
 
-    @patch("vtt2minutes.bedrock.boto3")
-    def test_invoke_model_non_claude(self, mock_boto3: Mock) -> None:
-        """Test model invocation for non-Claude models."""
-        mock_client = Mock()
-        mock_boto3.client.return_value = mock_client
-
-        generator = BedrockMeetingMinutesGenerator(
-            aws_access_key_id="test_key",
-            aws_secret_access_key="test_secret",
-            model_id="amazon.titan-text-express-v1",
-        )
-
-        mock_response = {"body": Mock()}
-        mock_response["body"].read.return_value = json.dumps(
-            {"results": [{"outputText": "test response"}]}
-        ).encode()
-        mock_client.invoke_model.return_value = mock_response
-
-        result = generator._invoke_model("test prompt")
-
-        assert result == mock_response
-        mock_client.invoke_model.assert_called_once()
-
-        # Check that the request body contains Titan-specific format
-        call_args = mock_client.invoke_model.call_args
-        body = json.loads(call_args[1]["body"])
-        assert "inputText" in body
-        assert "textGenerationConfig" in body
-
-    def test_extract_response_text_claude(self) -> None:
-        """Test response text extraction for Claude models."""
-        generator = BedrockMeetingMinutesGenerator(
-            aws_access_key_id="test_key",
-            aws_secret_access_key="test_secret",
-            model_id="anthropic.claude-3-haiku-20240307-v1:0",
-        )
-
-        mock_response = {"body": Mock()}
-        mock_response["body"].read.return_value = json.dumps(
-            {"content": [{"text": "Generated meeting minutes"}]}
-        ).encode()
+    @pytest.mark.parametrize(
+        "model_id,response_body,expected_text",
+        [
+            (
+                "anthropic.claude-3-haiku-20240307-v1:0",
+                {"content": [{"text": "Generated meeting minutes"}]},
+                "Generated meeting minutes",
+            ),
+            (
+                "amazon.titan-text-express-v1",
+                {"results": [{"outputText": "Generated meeting minutes"}]},
+                "Generated meeting minutes",
+            ),
+        ],
+    )
+    def test_extract_response_text(
+        self, model_id: str, response_body: dict[str, Any], expected_text: str
+    ) -> None:
+        """Test response text extraction for different model types."""
+        generator = self._create_generator(model_id)
+        mock_response = self._create_mock_response(response_body)
 
         result = generator._extract_response_text(mock_response)
-        assert result == "Generated meeting minutes"
+        assert result == expected_text
 
     def test_extract_response_text_claude_no_content(self) -> None:
         """Test response text extraction for Claude with no content."""
-        generator = BedrockMeetingMinutesGenerator(
-            aws_access_key_id="test_key",
-            aws_secret_access_key="test_secret",
-            model_id="anthropic.claude-3-haiku-20240307-v1:0",
-        )
-
-        mock_response = {"body": Mock()}
-        mock_response["body"].read.return_value = json.dumps({}).encode()
+        generator = self._create_generator("anthropic.claude-3-haiku-20240307-v1:0")
+        mock_response = self._create_mock_response({})
 
         with pytest.raises(BedrockError, match="No content found in Claude response"):
             generator._extract_response_text(mock_response)
 
-    def test_extract_response_text_titan(self) -> None:
-        """Test response text extraction for Titan models."""
-        generator = BedrockMeetingMinutesGenerator(
-            aws_access_key_id="test_key",
-            aws_secret_access_key="test_secret",
-            model_id="amazon.titan-text-express-v1",
-        )
-
-        mock_response = {"body": Mock()}
-        mock_response["body"].read.return_value = json.dumps(
-            {"results": [{"outputText": "Generated meeting minutes"}]}
-        ).encode()
-
-        result = generator._extract_response_text(mock_response)
-        assert result == "Generated meeting minutes"
-
     def test_extract_response_text_invalid_json(self) -> None:
         """Test response text extraction with invalid JSON."""
-        generator = BedrockMeetingMinutesGenerator(
-            aws_access_key_id="test_key",
-            aws_secret_access_key="test_secret",
-        )
+        generator = self._create_generator("anthropic.claude-3-haiku-20240307-v1:0")
 
         mock_response = {"body": Mock()}
         mock_response["body"].read.return_value = b"invalid json"
@@ -340,37 +421,23 @@ class TestBedrockMeetingMinutesGenerator:
     @patch("vtt2minutes.bedrock.boto3")
     def test_generate_minutes_from_markdown_api_error(self, mock_boto3: Mock) -> None:
         """Test meeting minutes generation with API error."""
-        mock_client = Mock()
-        mock_boto3.client.return_value = mock_client
-
-        error = ClientError({"Error": {"Code": "ValidationException"}}, "InvokeModel")
-        mock_client.invoke_model.side_effect = error
-
-        generator = BedrockMeetingMinutesGenerator(
-            aws_access_key_id="test_key",
-            aws_secret_access_key="test_secret",
+        generator = self._setup_api_error_test(
+            mock_boto3, "invoke_model", "ValidationException", "InvokeModel"
         )
 
-        with pytest.raises(BedrockError, match="Bedrock API call failed"):
-            generator.generate_minutes_from_markdown(
-                "# Test Meeting\n\nSpeaker: Hello world"
-            )
+        self._assert_api_error(
+            generator,
+            "generate_minutes_from_markdown",
+            "Bedrock API call failed",
+            "# Test Meeting\n\nSpeaker: Hello world",
+        )
 
     @patch("vtt2minutes.bedrock.boto3")
-    def test_get_available_models_success(self, mock_boto3: Mock) -> None:
+    def test_get_available_models_success(
+        self, mock_boto3: Mock, bedrock_generator: BedrockMeetingMinutesGenerator
+    ) -> None:
         """Test successful model listing."""
-        mock_runtime_client = Mock()
-        mock_bedrock_client = Mock()
-
-        def client_side_effect(service_name: str, **_kwargs: str) -> Mock:
-            if service_name == "bedrock-runtime":
-                return mock_runtime_client
-            elif service_name == "bedrock":
-                return mock_bedrock_client
-            else:
-                raise ValueError(f"Unknown service: {service_name}")
-
-        mock_boto3.client.side_effect = client_side_effect
+        _, mock_bedrock_client = self._setup_boto3_client_mock(mock_boto3)
 
         mock_bedrock_client.list_foundation_models.return_value = {
             "modelSummaries": [
@@ -389,12 +456,7 @@ class TestBedrockMeetingMinutesGenerator:
             ]
         }
 
-        generator = BedrockMeetingMinutesGenerator(
-            aws_access_key_id="test_key",
-            aws_secret_access_key="test_secret",
-        )
-
-        models = generator.get_available_models()
+        models = bedrock_generator.get_available_models()
 
         # Should only return models with streaming support
         expected_models = [
@@ -406,31 +468,46 @@ class TestBedrockMeetingMinutesGenerator:
     @patch("vtt2minutes.bedrock.boto3")
     def test_get_available_models_api_error(self, mock_boto3: Mock) -> None:
         """Test model listing with API error."""
-        mock_runtime_client = Mock()
-        mock_bedrock_client = Mock()
-
-        def client_side_effect(service_name: str, **_kwargs: str) -> Mock:
-            if service_name == "bedrock-runtime":
-                return mock_runtime_client
-            elif service_name == "bedrock":
-                return mock_bedrock_client
-            else:
-                raise ValueError(f"Unknown service: {service_name}")
-
-        mock_boto3.client.side_effect = client_side_effect
-
-        error = ClientError(
-            {"Error": {"Code": "AccessDeniedException"}}, "ListFoundationModels"
+        generator = self._setup_api_error_test(
+            mock_boto3,
+            "list_foundation_models",
+            "AccessDeniedException",
+            "ListFoundationModels",
         )
-        mock_bedrock_client.list_foundation_models.side_effect = error
 
+        self._assert_api_error(
+            generator,
+            "get_available_models",
+            "Failed to list Bedrock models",
+        )
+
+    @patch("vtt2minutes.bedrock.boto3.client")
+    def test_generate_minutes_with_inference_profile(self, mock_boto3: Mock) -> None:
+        """Test generate_minutes using inference_profile_id."""
+        mock_client = Mock()
+        mock_boto3.return_value = mock_client
+
+        # Mock successful response - Claude format
+        mock_response = self._create_mock_response(
+            {"content": [{"text": "Generated minutes"}]}
+        )
+
+        mock_client.invoke_model.return_value = mock_response
+
+        # Create generator after mocking
         generator = BedrockMeetingMinutesGenerator(
-            aws_access_key_id="test_key",
-            aws_secret_access_key="test_secret",
+            inference_profile_id="anthropic.claude-3-sonnet-20240229-v1:0",
         )
 
-        with pytest.raises(BedrockError, match="Failed to list Bedrock models"):
-            generator.get_available_models()
+        result = generator.generate_minutes_from_markdown(
+            "Test content", "Test meeting"
+        )
+
+        assert result == "Generated minutes"
+
+        # Verify the correct parameters were used
+        call_args = mock_client.invoke_model.call_args
+        assert call_args[1]["modelId"] == "anthropic.claude-3-sonnet-20240229-v1:0"
 
 
 class TestBedrockError:
@@ -475,34 +552,3 @@ class TestBedrockError:
 
         assert generator.model_id is None
         assert generator.inference_profile_id == "test-profile"
-
-    @patch("vtt2minutes.bedrock.boto3.client")
-    def test_generate_minutes_with_inference_profile(self, mock_boto3: Mock) -> None:
-        """Test generate_minutes using inference_profile_id."""
-        mock_client = Mock()
-        mock_boto3.return_value = mock_client
-
-        # Mock successful response - Claude format
-        mock_response = {
-            "body": Mock(),
-        }
-        mock_response["body"].read.return_value = json.dumps(
-            {"content": [{"text": "Generated minutes"}]}
-        ).encode()
-
-        mock_client.invoke_model.return_value = mock_response
-
-        generator = BedrockMeetingMinutesGenerator(
-            # Include "claude" in the ID for proper response parsing
-            inference_profile_id="anthropic.claude-3-sonnet-20240229-v1:0",
-        )
-
-        result = generator.generate_minutes_from_markdown(
-            "Test content", "Test meeting"
-        )
-
-        assert result == "Generated minutes"
-
-        # Verify the correct parameters were used
-        call_args = mock_client.invoke_model.call_args
-        assert call_args[1]["modelId"] == "anthropic.claude-3-sonnet-20240229-v1:0"

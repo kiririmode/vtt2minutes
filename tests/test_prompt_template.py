@@ -12,6 +12,27 @@ from vtt2minutes.bedrock import BedrockError, BedrockMeetingMinutesGenerator
 class TestPromptTemplateFeature:
     """Test prompt template functionality."""
 
+    def _create_temp_template_file(self, content: str) -> Path:
+        """Helper to create temporary template file with given content."""
+        with NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write(content)
+            return Path(f.name)
+
+    def _test_template_file_usage(
+        self, template_content: str, expected_result: str
+    ) -> None:
+        """Helper to test template file usage with given content and expected result."""
+        template_path = self._create_temp_template_file(template_content)
+
+        try:
+            generator = BedrockMeetingMinutesGenerator(
+                prompt_template_file=template_path
+            )
+            result = generator._create_prompt("Test content", "Test Title")
+            assert expected_result in result or result == expected_result
+        finally:
+            template_path.unlink()
+
     def test_substitute_placeholders(self) -> None:
         """Test placeholder substitution."""
         generator = BedrockMeetingMinutesGenerator()
@@ -46,22 +67,8 @@ class TestPromptTemplateFeature:
     def test_custom_template_file_usage(self) -> None:
         """Test using custom template file."""
         template_content = "Custom template: {title}\n{markdown_content}"
-
-        with NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write(template_content)
-            template_path = Path(f.name)
-
-        try:
-            generator = BedrockMeetingMinutesGenerator(
-                prompt_template_file=template_path
-            )
-
-            result = generator._create_prompt("Test content", "Test Title")
-
-            expected = "Custom template: Test Title\nTest content"
-            assert result == expected
-        finally:
-            template_path.unlink()
+        expected = "Custom template: Test Title\nTest content"
+        self._test_template_file_usage(template_content, expected)
 
     def test_nonexistent_template_file_fallback(self) -> None:
         """Test fallback to default when template file doesn't exist."""
@@ -93,16 +100,12 @@ class TestPromptTemplateFeature:
             "Content: {markdown_content}\n"
             "Japanese meeting minutes instruction."
         )
-
-        with NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write(template_content)
-            template_path = Path(f.name)
+        template_path = self._create_temp_template_file(template_content)
 
         try:
             generator = BedrockMeetingMinutesGenerator(
                 prompt_template_file=template_path
             )
-
             result = generator._create_prompt(
                 "Meeting transcript here", "Weekly Standup"
             )

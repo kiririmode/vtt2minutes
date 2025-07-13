@@ -64,16 +64,21 @@ class IntermediateTranscriptWriter:
 
         return "\n".join(lines)
 
-    def _add_section_header(self, lines: list[str], text: str, level: int = 1) -> None:
+    def _add_section_header(
+        self, lines: list[str], text: str, level: int = 1, content: str = ""
+    ) -> None:
         """Add a markdown header with specified level to lines.
 
         Args:
             lines: List to append header lines to
             text: Header text
             level: Header level (1 for #, 2 for ##, etc.)
+            content: Optional content to add after the header
         """
         header_prefix = "#" * level
         lines.append(f"{header_prefix} {text}")
+        if content:
+            lines.append(content)
         lines.append("")
 
     def _add_markdown_header(self, lines: list[str], title: str) -> None:
@@ -180,10 +185,9 @@ class IntermediateTranscriptWriter:
         """
         speaker_name = speaker or "話者不明"
         section_text = " ".join(content)
+        header_text = f"{speaker_name} ({start_time} - {end_time})"
 
-        lines.append(f"### {speaker_name} ({start_time} - {end_time})")
-        lines.append(section_text)
-        lines.append("")
+        self._add_section_header(lines, header_text, level=3, content=section_text)
 
     def get_statistics(self, cues: list[VTTCue]) -> dict[str, Any]:
         """Get statistics about the preprocessed transcript.
