@@ -245,24 +245,33 @@ class TextPreprocessor:
         Returns:
             Cleaned VTTCue
         """
+        if final_cleanup:
+            return self._apply_final_cleanup(cue)
+        else:
+            return self._apply_full_cleanup(cue)
+
+    def _apply_final_cleanup(self, cue: VTTCue) -> VTTCue:
+        """Apply final cleanup processing to a cue."""
+        text = cue.text
+        text = self._remove_extra_punctuation(text)
+        text = self._ensure_proper_endings(text)
+        text = self._normalize_whitespace(text)
+        return self._create_cleaned_cue(cue, text)
+
+    def _apply_full_cleanup(self, cue: VTTCue) -> VTTCue:
+        """Apply full cleanup processing to a cue."""
         text = cue.text
 
-        if final_cleanup:
-            # Final cleanup: only punctuation and normalization
-            text = self._remove_extra_punctuation(text)
-            text = self._ensure_proper_endings(text)
-        else:
-            # Regular cleaning: full processing
-            # Apply word replacement if enabled
-            if self.config.enable_word_replacement:
-                text = self._apply_word_replacement(text)
+        # Apply word replacement if enabled
+        if self.config.enable_word_replacement:
+            text = self._apply_word_replacement(text)
 
-            # Remove filler words
-            text = self._remove_filler_words(text)
+        # Remove filler words
+        text = self._remove_filler_words(text)
 
-            # Fix transcription errors
-            if self.config.fix_transcription_errors:
-                text = self._fix_transcription_errors(text)
+        # Fix transcription errors
+        if self.config.fix_transcription_errors:
+            text = self._fix_transcription_errors(text)
 
         # Normalize whitespace appropriately for the language
         text = self._normalize_whitespace(text)
@@ -448,18 +457,23 @@ class TextPreprocessor:
         Returns:
             Segment with filler words removed
         """
+        if not self.config.filler_words:
+            return segment
+
         words = segment.split()
         filtered_words: list[str] = []
 
         for word in words:
-            clean_word = re.sub(r"[^\w]", "", word.lower())
-            if (
-                self.config.filler_words is None
-                or clean_word not in self.config.filler_words
-            ):
+            if not self._is_filler_word(word):
                 filtered_words.append(word)
 
-        return "".join(filtered_words)
+        return " ".join(filtered_words)
+
+    def _is_filler_word(self, word: str) -> bool:
+        """Check if a word is a filler word."""
+        clean_word = re.sub(r"[^\w]", "", word.lower())
+        filler_words = self.config.filler_words
+        return filler_words is not None and clean_word in filler_words
 
     def _cleanup_and_add_punctuation(self, result: str, original_text: str) -> str:
         """Clean up result and add appropriate punctuation.
@@ -474,16 +488,19 @@ class TextPreprocessor:
         # Clean up leading punctuation
         result = re.sub(r"^[、，]", "", result)
 
-        # Add back sentence-ending punctuation if needed
+        return self._add_appropriate_punctuation(result, original_text)
+
+    def _add_appropriate_punctuation(self, text: str, original_text: str) -> str:
+        """Add appropriate punctuation to text."""
         ending_punctuation = ("。", ".", "！", "!", "？", "?")
 
         if original_text.endswith(ending_punctuation):
-            if not result.endswith(ending_punctuation):
-                result += self._get_appropriate_ending(original_text)
-        elif original_text.strip() and not result.endswith(ending_punctuation):
-            result += "。"
+            if not text.endswith(ending_punctuation):
+                text += self._get_appropriate_ending(original_text)
+        elif original_text.strip() and not text.endswith(ending_punctuation):
+            text += "。"
 
-        return result
+        return text
 
     def _get_appropriate_ending(self, text: str) -> str:
         """Get appropriate sentence ending punctuation.
@@ -535,20 +552,25 @@ class TextPreprocessor:
         Returns:
             True if cue is valid
         """
-        # Check minimum text length
-        if len(cue.text.strip()) < self.config.min_text_length:
-            return False
+        return (
+            self._has_valid_text_length(cue)
+            and self._has_valid_duration(cue)
+            and self._has_meaningful_content(cue)
+        )
 
-        # Check minimum duration
-        if cue.duration < self.config.min_duration:
-            return False
+    def _has_valid_text_length(self, cue: VTTCue) -> bool:
+        """Check if cue has valid text length."""
+        return len(cue.text.strip()) >= self.config.min_text_length
 
-        # Check for empty or meaningless text
+    def _has_valid_duration(self, cue: VTTCue) -> bool:
+        """Check if cue has valid duration."""
+        return cue.duration >= self.config.min_duration
+
+    def _has_meaningful_content(self, cue: VTTCue) -> bool:
+        """Check if cue has meaningful content."""
         meaningless_texts = {"。", "、", ".", ","}
-        if not cue.text.strip() or cue.text.strip() in meaningless_texts:
-            return False
-
-        return True
+        stripped_text = cue.text.strip()
+        return bool(stripped_text and stripped_text not in meaningless_texts)
 
     def _remove_duplicates(self, cues: list[VTTCue]) -> list[VTTCue]:
         """Remove duplicate or very similar cues.

@@ -11,10 +11,19 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.text import Text
 
+from .batch import (
+    BatchJob,
+    BatchProcessor,
+    display_vtt_files_table,
+    interactive_job_configuration,
+    review_and_confirm_jobs,
+    scan_vtt_files,
+)
 from .bedrock import BedrockError, BedrockMeetingMinutesGenerator
 from .intermediate import IntermediateTranscriptWriter
 from .parser import VTTCue, VTTParser
 from .preprocessor import PreprocessingConfig, TextPreprocessor
+from .processor import ProcessingConfig
 
 console = Console()
 
@@ -61,6 +70,15 @@ def _display_header(verbose: bool, input_file: Path, output: Path) -> None:
         console.print()
 
 
+class OperationConfig:
+    """Configuration for operations with standard descriptions."""
+
+    def __init__(self, task_desc: str, success_desc: str, error_prefix: str) -> None:
+        self.task_desc = task_desc
+        self.success_desc = success_desc
+        self.error_prefix = error_prefix
+
+
 def _execute_with_progress[T](
     progress: Progress,
     task_description: str,
@@ -68,7 +86,7 @@ def _execute_with_progress[T](
     error_message: str,
     operation: Callable[[], T],
     verbose: bool = False,
-    verbose_callback: Callable[[], None] | None = None,
+    verbose_callback: Callable[[T], None] | None = None,
 ) -> T:
     """Execute an operation with progress tracking and error handling.
 
@@ -79,7 +97,7 @@ def _execute_with_progress[T](
         error_message: Error message prefix if operation fails
         operation: Function to execute
         verbose: Whether to call verbose callback
-        verbose_callback: Optional callback for verbose output
+        verbose_callback: Optional callback for verbose output (receives result)
 
     Returns:
         Result of the operation
@@ -93,7 +111,7 @@ def _execute_with_progress[T](
         progress.update(task, description=success_description)
 
         if verbose and verbose_callback:
-            verbose_callback()
+            verbose_callback(result)
 
         return result
     except FileOperationError as e:
@@ -106,74 +124,32 @@ def _execute_with_progress[T](
         sys.exit(1)
 
 
-def _execute_operation_with_verbose_output[T](
-    progress: Progress,
-    task_desc: str,
-    success_desc: str,
-    error_prefix: str,
-    operation: Callable[[], T],
-    verbose: bool,
-    verbose_callback: Callable[[T], None] | None = None,
-) -> T:
-    """Execute operation with progress tracking and optional verbose output.
-
-    Args:
-        progress: Progress instance
-        task_desc: Task description while running
-        success_desc: Success message
-        error_prefix: Error message prefix
-        operation: Function to execute
-        verbose: Whether to show verbose output
-        verbose_callback: Callback with operation result for verbose output
-
-    Returns:
-        Result of the operation
-    """
-    result = _execute_with_progress(
-        progress, task_desc, success_desc, error_prefix, operation
-    )
-
-    if verbose and verbose_callback:
-        verbose_callback(result)
-
-    return result
-
-
-class FileOperationConfig:
-    """Configuration for file operations with standard descriptions."""
-
-    def __init__(self, task_desc: str, success_desc: str, error_prefix: str) -> None:
-        self.task_desc = task_desc
-        self.success_desc = success_desc
-        self.error_prefix = error_prefix
-
-
 def _execute_configured_operation[T](
-    config: FileOperationConfig,
+    config: OperationConfig,
     progress: Progress,
     operation: Callable[[], T],
-    verbose: bool,
+    verbose: bool = False,
     verbose_callback: Callable[[T], None] | None = None,
 ) -> T:
     """Execute operation using a configuration object."""
-    return _execute_operation_with_verbose_output(
+    return _execute_with_progress(
         progress=progress,
-        task_desc=config.task_desc,
-        success_desc=config.success_desc,
-        error_prefix=config.error_prefix,
+        task_description=config.task_desc,
+        success_description=config.success_desc,
+        error_message=config.error_prefix,
         operation=operation,
         verbose=verbose,
         verbose_callback=verbose_callback,
     )
 
 
-_PARSING_CONFIG = FileOperationConfig(
+_PARSING_CONFIG = OperationConfig(
     task_desc="VTTファイルを解析中...",
     success_desc="✓ VTTファイル解析完了",
     error_prefix="VTTファイルの解析に失敗しました",
 )
 
-_SAVE_CONFIG = FileOperationConfig(
+_SAVE_CONFIG = OperationConfig(
     task_desc="中間ファイルを保存中...",
     success_desc="✓ 中間ファイル保存完了",
     error_prefix="中間ファイルの保存に失敗しました",
@@ -243,25 +219,22 @@ def _preprocess_cues(
 
     original_count = len(cues)
 
-    def preprocess_operation() -> list[VTTCue]:
-        return preprocessor.preprocess_cues(cues)
-
-    processed_cues = _execute_with_progress(
-        progress,
-        "テキストを前処理中...",
-        "✓ 前処理完了",
-        "前処理に失敗しました",
-        preprocess_operation,
-    )
-
-    if verbose:
+    def verbose_callback(processed_cues: list[VTTCue]) -> None:
         console.print(f"前処理後のキュー数: {len(processed_cues)}")
         removed = original_count - len(processed_cues)
         if removed > 0:
             console.print(f"除去されたキュー数: {removed}")
         console.print()
 
-    return processed_cues
+    return _execute_with_progress(
+        progress,
+        "テキストを前処理中...",
+        "✓ 前処理完了",
+        "前処理に失敗しました",
+        lambda: preprocessor.preprocess_cues(cues),
+        verbose=verbose,
+        verbose_callback=verbose_callback,
+    )
 
 
 def _save_intermediate_file(
@@ -370,18 +343,25 @@ def _generate_chat_prompt(
 
         chat_prompt_file.write_text(chat_prompt, encoding="utf-8")
 
+    def verbose_callback(_: None) -> None:
+        console.print(f"チャットプロンプトファイル: {chat_prompt_file}")
+        console.print()
+
     _execute_with_progress(
         progress,
         "チャットプロンプトファイルを生成中...",
         "✓ チャットプロンプトファイル生成完了",
         "チャットプロンプトファイルの生成に失敗しました",
         generate_operation,
+        verbose=verbose,
+        verbose_callback=verbose_callback,
     )
 
-    if verbose:
-        console.print(f"チャットプロンプトファイル: {chat_prompt_file}")
-        console.print()
+    _display_chat_prompt_success(chat_prompt_file, progress)
 
+
+def _display_chat_prompt_success(chat_prompt_file: Path, progress: Progress) -> None:
+    """Display success message for chat prompt generation."""
     progress.stop()
     console.print(
         Panel.fit(
@@ -470,6 +450,13 @@ def _generate_bedrock_minutes(
         sys.exit(1)
 
 
+_OUTPUT_SAVE_CONFIG = OperationConfig(
+    task_desc="ファイルを保存中...",
+    success_desc="✓ 保存完了",
+    error_prefix="ファイルの保存に失敗しました",
+)
+
+
 def _save_output_file(
     output: Path, content: str, progress: Progress, overwrite: bool = False
 ) -> None:
@@ -484,18 +471,18 @@ def _save_output_file(
     Raises:
         FileExistsError: If output file exists and overwrite is False
     """
-
-    def save_operation() -> None:
-        _check_file_exists_and_overwrite(output, overwrite, "Output file")
-        output.write_text(content, encoding="utf-8")
-
-    _execute_with_progress(
-        progress,
-        "ファイルを保存中...",
-        "✓ 保存完了",
-        "ファイルの保存に失敗しました",
-        save_operation,
+    _execute_configured_operation(
+        config=_OUTPUT_SAVE_CONFIG,
+        progress=progress,
+        operation=lambda: _save_file_operation(output, content, overwrite),
+        verbose=False,
     )
+
+
+def _save_file_operation(file_path: Path, content: str, overwrite: bool) -> None:
+    """Execute file save operation with overwrite checking."""
+    _check_file_exists_and_overwrite(file_path, overwrite, "Output file")
+    file_path.write_text(content, encoding="utf-8")
 
 
 def _display_statistics(
@@ -852,6 +839,272 @@ def _display_sample_cues(cues: list[VTTCue]) -> None:
 
 # Add the info command to the main CLI
 cli.add_command(info)
+
+
+def _setup_batch_processing(
+    output_dir: Path | None, directory: Path, recursive: bool
+) -> list[Path]:
+    """Set up batch processing and scan for VTT files."""
+    # Create output directory if specified
+    if output_dir and not output_dir.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Display header and scan for VTT files
+    console.print()
+    console.print(
+        Panel.fit(Text("VTT2Minutes バッチ処理", style="bold blue"), style="blue")
+    )
+    console.print(f"ディレクトリをスキャン中: {directory}")
+
+    vtt_files = scan_vtt_files(directory, recursive=recursive)
+    display_vtt_files_table(vtt_files, directory)
+
+    return vtt_files
+
+
+def _configure_batch_jobs(
+    vtt_files: list[Path], directory: Path, output_dir: Path | None
+) -> list[BatchJob]:
+    """Configure batch jobs interactively."""
+    if not vtt_files:
+        return []
+
+    jobs = interactive_job_configuration(vtt_files, directory, output_dir)
+
+    if not jobs:
+        console.print("[yellow]処理対象のファイルがありません。[/yellow]")
+        return []
+
+    # Review and confirm jobs
+    proceed, final_jobs = review_and_confirm_jobs(jobs, directory)
+
+    if not proceed or not final_jobs:
+        console.print("[yellow]処理をキャンセルしました。[/yellow]")
+        return []
+
+    return final_jobs
+
+
+def _create_processing_config(
+    no_preprocessing: bool,
+    min_duration: float,
+    merge_threshold: float,
+    duplicate_threshold: float,
+    filter_words_file: Path | None,
+    replacement_rules_file: Path | None,
+    bedrock_model: str | None,
+    bedrock_inference_profile_id: str | None,
+    bedrock_region: str,
+    prompt_template: Path | None,
+    overwrite: bool,
+    verbose: bool,
+    stats: bool,
+) -> ProcessingConfig:
+    """Create processing configuration."""
+    return ProcessingConfig(
+        no_preprocessing=no_preprocessing,
+        min_duration=min_duration,
+        merge_threshold=merge_threshold,
+        duplicate_threshold=duplicate_threshold,
+        filter_words_file=filter_words_file,
+        replacement_rules_file=replacement_rules_file,
+        bedrock_model=bedrock_model,
+        bedrock_inference_profile_id=bedrock_inference_profile_id,
+        bedrock_region=bedrock_region,
+        prompt_template=prompt_template,
+        overwrite=overwrite,
+        verbose=verbose,
+        stats=stats,
+    )
+
+
+@cli.command()
+@click.argument("directory", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--output-dir",
+    "-o",
+    type=click.Path(path_type=Path),
+    help="Output directory for generated files",
+)
+@click.option(
+    "--recursive/--no-recursive",
+    default=True,
+    help="Scan directory recursively (default: --recursive)",
+)
+@click.option("--title", "-t", type=str, help="Default meeting title prefix")
+@click.option("--no-preprocessing", is_flag=True, help="Skip text preprocessing step")
+@click.option(
+    "--min-duration",
+    type=float,
+    default=0.5,
+    help="Minimum cue duration in seconds (default: 0.5)",
+)
+@click.option(
+    "--merge-threshold",
+    type=float,
+    default=2.0,
+    help="Time gap threshold for merging cues in seconds (default: 2.0)",
+)
+@click.option(
+    "--duplicate-threshold",
+    type=float,
+    default=0.8,
+    help="Similarity threshold for duplicate detection (0.0-1.0, default: 0.8)",
+)
+@click.option(
+    "--filter-words-file",
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to custom filler words file",
+)
+@click.option(
+    "--replacement-rules-file",
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to custom word replacement rules file",
+)
+@click.option(
+    "--bedrock-model",
+    type=str,
+    help=(
+        "Bedrock model ID to use "
+        "(mutually exclusive with --bedrock-inference-profile-id)"
+    ),
+)
+@click.option(
+    "--bedrock-inference-profile-id",
+    type=str,
+    help=(
+        "Bedrock inference profile ID to use (mutually exclusive with --bedrock-model)"
+    ),
+)
+@click.option(
+    "--bedrock-region",
+    type=str,
+    default="ap-northeast-1",
+    help="AWS region for Bedrock (default: ap-northeast-1)",
+)
+@click.option(
+    "--prompt-template",
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to custom prompt template file",
+)
+@click.option(
+    "--chat-prompt-files",
+    is_flag=True,
+    help="Generate chat prompt files instead of using Bedrock",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+@click.option("--stats", is_flag=True, help="Show preprocessing statistics")
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    help="Overwrite existing output files without warning",
+)
+def batch(
+    directory: Path,
+    output_dir: Path | None,
+    recursive: bool,
+    title: str | None,
+    no_preprocessing: bool,
+    min_duration: float,
+    merge_threshold: float,
+    duplicate_threshold: float,
+    filter_words_file: Path | None,
+    replacement_rules_file: Path | None,
+    bedrock_model: str | None,
+    bedrock_inference_profile_id: str | None,
+    bedrock_region: str,
+    prompt_template: Path | None,
+    chat_prompt_files: bool,
+    verbose: bool,
+    stats: bool,
+    overwrite: bool,
+) -> None:
+    """Process multiple VTT files in a directory interactively.
+
+    This command scans the specified directory for VTT files and allows you to
+    configure and process them in batch mode. Each file can be individually
+    configured with its own title and output path.
+
+    Example usage:
+
+        vtt2minutes batch ./meetings
+
+        vtt2minutes batch ./meetings --output-dir ./output
+
+        vtt2minutes batch ./meetings --bedrock-model \
+            anthropic.claude-3-sonnet-20241022-v2:0
+    """
+    try:
+        # Validate Bedrock configuration if not using chat prompt files
+        if not chat_prompt_files:
+            _validate_bedrock_config(bedrock_model, bedrock_inference_profile_id)
+
+        # Setup and scan for files
+        vtt_files = _setup_batch_processing(output_dir, directory, recursive)
+
+        # Configure batch jobs
+        final_jobs = _configure_batch_jobs(vtt_files, directory, output_dir)
+        if not final_jobs:
+            return
+
+        # Create configuration and process
+        config = _create_processing_config(
+            no_preprocessing,
+            min_duration,
+            merge_threshold,
+            duplicate_threshold,
+            filter_words_file,
+            replacement_rules_file,
+            bedrock_model,
+            bedrock_inference_profile_id,
+            bedrock_region,
+            prompt_template,
+            overwrite,
+            verbose,
+            stats,
+        )
+
+        processor = BatchProcessor(config)
+
+        if chat_prompt_files:
+            _process_batch_for_chat_prompts(processor, final_jobs)
+        else:
+            processor.process_batch(final_jobs)
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]処理が中断されました。[/yellow]")
+        sys.exit(130)
+    except Exception as e:
+        console.print(f"\n[red]予期しないエラーが発生しました: {e}[/red]")
+        if verbose:
+            console.print_exception()
+        sys.exit(1)
+
+
+def _process_batch_for_chat_prompts(
+    processor: BatchProcessor, jobs: list[BatchJob]
+) -> None:
+    """Process batch jobs to generate chat prompt files."""
+
+    # Modify jobs to generate chat prompt files
+    chat_jobs: list[BatchJob] = []
+    for job in jobs:
+        # Create chat prompt filename
+        chat_prompt_file = job.output_file.with_suffix(".txt")
+
+        # Create a modified job for chat prompt generation
+        modified_job = BatchJob(
+            vtt_file=job.vtt_file,
+            title=job.title,
+            output_file=chat_prompt_file,  # This will be detected in BatchProcessor
+            enabled=job.enabled,
+            intermediate_file=job.intermediate_file,
+        )
+        chat_jobs.append(modified_job)
+
+    # Process with the modified jobs
+    processor.process_batch(chat_jobs)
+
 
 if __name__ == "__main__":
     main()
