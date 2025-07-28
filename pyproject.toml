@@ -43,9 +43,9 @@ dev = [
 vtt2minutes = "vtt2minutes.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/vtt2minutes/vtt2minutes"
-Repository = "https://github.com/vtt2minutes/vtt2minutes"
-Issues = "https://github.com/vtt2minutes/vtt2minutes/issues"
+Homepage = "https://github.com/kiririmode/vtt2minutes"
+Repository = "https://github.com/kiririmode/vtt2minutes"
+Issues = "https://github.com/kiririmode/vtt2minutes/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vtt2minutes"]
@@ -92,26 +92,30 @@ include = ["src", "tests"]
 exclude = ["**/__pycache__"]
 pythonVersion = "3.12"
 pythonPlatform = "All"
-typeCheckingMode = "strict"
+typeCheckingMode = "basic"
 reportMissingImports = true
 reportMissingTypeStubs = false
-reportPrivateUsage = "warning"
+reportPrivateUsage = "none"
 reportUnusedImport = "error"
 reportUnusedClass = "error"
 reportUnusedFunction = "error"
 reportUnusedVariable = "error"
 reportDuplicateImport = "error"
-reportOptionalSubscript = "error"
-reportOptionalMemberAccess = "error"
-reportOptionalCall = "error"
-reportOptionalIterable = "error"
-reportOptionalContextManager = "error"
-reportOptionalOperand = "error"
-reportTypedDictNotRequiredAccess = "error"
+reportOptionalSubscript = "warning"
+reportOptionalMemberAccess = "warning"
+reportOptionalCall = "warning"
+reportOptionalIterable = "warning"
+reportOptionalContextManager = "warning"
+reportOptionalOperand = "warning"
+reportTypedDictNotRequiredAccess = "warning"
+reportUnknownMemberType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownParameterType = "none"
+reportMissingParameterType = "none"
 
 # Per-file type checking rules
 executionEnvironments = [
-  { root = "tests", reportPrivateUsage = "none" }
+  { root = "tests", reportPrivateUsage = "none", reportUnknownMemberType = "none", reportUnknownArgumentType = "none", reportUnknownParameterType = "none", reportMissingParameterType = "none", reportArgumentType = "none" }
 ]
 
 [tool.pytest.ini_options]

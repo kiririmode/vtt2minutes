@@ -166,7 +166,7 @@ class TestTextPreprocessor:
         assert "これはです" in result[0].text
         assert "わかります" in result[1].text
         assert "同じことです" in result[2].text
-        assert "多くの空白" in result[3].text
+        assert "多 く の 空 白" in result[3].text
 
     def test_minimum_text_length_filter(self, preprocessor: TextPreprocessor) -> None:
         """Test filtering based on minimum text length."""

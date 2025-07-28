@@ -1613,3 +1613,369 @@ class TestCLI:
             assert "AI議事録生成が完了しました" in result.output
             # Verify the output file was overwritten
             assert output_file.read_text(encoding="utf-8") == "# Generated Minutes"
+
+
+class TestBatchCommand:
+    """Test cases for batch command functionality."""
+
+    def test_batch_command_help(self) -> None:
+        """Test batch command help."""
+        from vtt2minutes.cli import batch
+
+        runner = CliRunner()
+        result = runner.invoke(batch, ["--help"])
+
+        assert result.exit_code == 0
+        assert (
+            "Process multiple VTT files in a directory interactively" in result.output
+        )
+        assert "--recursive" in result.output
+        assert "--output-dir" in result.output
+
+    @patch("vtt2minutes.cli.scan_vtt_files")
+    def test_batch_no_vtt_files_found(self, mock_scan) -> None:
+        """Test batch command when no VTT files are found."""
+        from vtt2minutes.cli import batch
+
+        mock_scan.return_value = []
+
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = runner.invoke(
+                batch,
+                [
+                    temp_dir,
+                    "--bedrock-model",
+                    "anthropic.claude-3-sonnet-20241022-v2:0",
+                ],
+            )
+
+            assert result.exit_code == 0
+            assert (
+                "指定されたディレクトリにVTTファイルが見つかりませんでした"
+                in result.output
+            )
+
+    @patch("vtt2minutes.cli.scan_vtt_files")
+    @patch("vtt2minutes.cli.display_vtt_files_table")
+    @patch("vtt2minutes.cli.interactive_job_configuration")
+    def test_batch_user_cancels_configuration(
+        self, mock_interactive, mock_display, mock_scan
+    ) -> None:
+        """Test batch command when user cancels configuration."""
+        from vtt2minutes.cli import batch
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            vtt_file = Path(temp_dir) / "meeting.vtt"
+            vtt_file.touch()
+
+            mock_scan.return_value = [vtt_file]
+            mock_interactive.return_value = []  # No jobs configured
+
+            runner = CliRunner()
+            result = runner.invoke(
+                batch,
+                [
+                    temp_dir,
+                    "--bedrock-model",
+                    "anthropic.claude-3-sonnet-20241022-v2:0",
+                ],
+            )
+
+            assert result.exit_code == 0
+            assert "処理対象のファイルがありません" in result.output
+
+    @patch("vtt2minutes.cli.scan_vtt_files")
+    @patch("vtt2minutes.cli.display_vtt_files_table")
+    @patch("vtt2minutes.cli.interactive_job_configuration")
+    @patch("vtt2minutes.cli.review_and_confirm_jobs")
+    def test_batch_user_cancels_review(
+        self, mock_review, mock_interactive, mock_display, mock_scan
+    ) -> None:
+        """Test batch command when user cancels job review."""
+        from vtt2minutes.batch import BatchJob
+        from vtt2minutes.cli import batch
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            vtt_file = Path(temp_dir) / "meeting.vtt"
+            vtt_file.touch()
+
+            job = BatchJob.from_vtt_file(vtt_file)
+
+            mock_scan.return_value = [vtt_file]
+            mock_interactive.return_value = [job]
+            mock_review.return_value = (False, [])  # User cancels
+
+            runner = CliRunner()
+            result = runner.invoke(
+                batch,
+                [
+                    temp_dir,
+                    "--bedrock-model",
+                    "anthropic.claude-3-sonnet-20241022-v2:0",
+                ],
+            )
+
+            assert result.exit_code == 0
+            assert "処理をキャンセルしました" in result.output
+
+    @patch("vtt2minutes.cli.scan_vtt_files")
+    @patch("vtt2minutes.cli.display_vtt_files_table")
+    @patch("vtt2minutes.cli.interactive_job_configuration")
+    @patch("vtt2minutes.cli.review_and_confirm_jobs")
+    @patch("vtt2minutes.cli.BatchProcessor")
+    def test_batch_successful_processing(
+        self,
+        mock_processor_class,
+        mock_review,
+        mock_interactive,
+        mock_display,
+        mock_scan,
+    ) -> None:
+        """Test successful batch processing."""
+        from vtt2minutes.batch import BatchJob
+        from vtt2minutes.cli import batch
+        from vtt2minutes.processor import ProcessingResult
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            vtt_file = Path(temp_dir) / "meeting.vtt"
+            output_file = Path(temp_dir) / "meeting.md"
+            vtt_file.touch()
+
+            job = BatchJob(
+                vtt_file=vtt_file,
+                title="Test Meeting",
+                output_file=output_file,
+                enabled=True,
+            )
+
+            # Mock successful processing result
+            result_obj = ProcessingResult(
+                success=True, input_file=vtt_file, output_file=output_file
+            )
+
+            mock_scan.return_value = [vtt_file]
+            mock_interactive.return_value = [job]
+            mock_review.return_value = (True, [job])  # User confirms
+
+            mock_processor = Mock()
+            mock_processor.process_batch.return_value = [result_obj]
+            mock_processor_class.return_value = mock_processor
+
+            runner = CliRunner()
+            result = runner.invoke(
+                batch,
+                [
+                    temp_dir,
+                    "--bedrock-model",
+                    "anthropic.claude-3-sonnet-20241022-v2:0",
+                ],
+            )
+
+            assert result.exit_code == 0
+            mock_processor.process_batch.assert_called_once_with([job])
+
+    @patch("vtt2minutes.cli.scan_vtt_files")
+    def test_batch_with_recursive_option(self, mock_scan) -> None:
+        """Test batch command with recursive option."""
+        from vtt2minutes.cli import batch
+
+        mock_scan.return_value = []
+
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runner.invoke(
+                batch,
+                [
+                    temp_dir,
+                    "--recursive",
+                    "--bedrock-model",
+                    "anthropic.claude-3-sonnet-20241022-v2:0",
+                ],
+            )
+
+            # Verify scan_vtt_files was called with recursive=True
+            mock_scan.assert_called_once_with(Path(temp_dir), recursive=True)
+
+    @patch("vtt2minutes.cli.scan_vtt_files")
+    def test_batch_with_no_recursive_option(self, mock_scan) -> None:
+        """Test batch command without recursive option."""
+        from vtt2minutes.cli import batch
+
+        mock_scan.return_value = []
+
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runner.invoke(
+                batch,
+                [
+                    temp_dir,
+                    "--no-recursive",
+                    "--bedrock-model",
+                    "anthropic.claude-3-sonnet-20241022-v2:0",
+                ],
+            )
+
+            # Verify scan_vtt_files was called with recursive=False
+            mock_scan.assert_called_once_with(Path(temp_dir), recursive=False)
+
+    @patch("vtt2minutes.cli.scan_vtt_files")
+    @patch("vtt2minutes.cli.display_vtt_files_table")
+    @patch("vtt2minutes.cli.interactive_job_configuration")
+    def test_batch_with_output_dir(
+        self, mock_interactive, mock_display, mock_scan
+    ) -> None:
+        """Test batch command with custom output directory."""
+        from vtt2minutes.cli import batch
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            vtt_file = Path(temp_dir) / "meeting.vtt"
+            output_dir = Path(temp_dir) / "output"
+            output_dir.mkdir()
+            vtt_file.touch()
+
+            mock_scan.return_value = [vtt_file]
+            mock_interactive.return_value = []  # Cancel after seeing output dir
+
+            runner = CliRunner()
+            runner.invoke(
+                batch,
+                [
+                    temp_dir,
+                    "--output-dir",
+                    str(output_dir),
+                    "--bedrock-model",
+                    "anthropic.claude-3-sonnet-20241022-v2:0",
+                ],
+            )
+
+            # Verify interactive_job_configuration was called with output_dir
+            mock_interactive.assert_called_once()
+            call_args = mock_interactive.call_args
+            # Check positional arguments: vtt_files, base_directory, output_directory
+            assert len(call_args[0]) == 3
+            assert call_args[0][2] == output_dir
+
+    def test_batch_directory_not_exists(self) -> None:
+        """Test batch command with non-existent directory."""
+        from vtt2minutes.cli import batch
+
+        runner = CliRunner()
+        result = runner.invoke(
+            batch,
+            [
+                "/non/existent/directory",
+                "--bedrock-model",
+                "anthropic.claude-3-sonnet-20241022-v2:0",
+            ],
+        )
+
+        assert result.exit_code == 2
+        assert "Path '/non/existent/directory' does not exist" in result.output
+
+    def test_batch_path_is_not_directory(self) -> None:
+        """Test batch command with file path instead of directory."""
+        from vtt2minutes.cli import batch
+
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "test.txt"
+            file_path.touch()
+
+            result = runner.invoke(
+                batch,
+                [
+                    str(file_path),
+                    "--bedrock-model",
+                    "anthropic.claude-3-sonnet-20241022-v2:0",
+                ],
+            )
+
+            assert result.exit_code == 1
+            assert "予期しないエラーが発生しました" in result.output
+
+    @patch("vtt2minutes.cli.scan_vtt_files")
+    def test_batch_scan_error(self, mock_scan) -> None:
+        """Test batch command when scan_vtt_files raises error."""
+        from vtt2minutes.cli import batch
+
+        mock_scan.side_effect = Exception("Scan error")
+
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = runner.invoke(
+                batch,
+                [
+                    temp_dir,
+                    "--bedrock-model",
+                    "anthropic.claude-3-sonnet-20241022-v2:0",
+                ],
+            )
+
+            assert result.exit_code == 1
+            assert "予期しないエラーが発生しました" in result.output
+
+    @patch("vtt2minutes.cli.scan_vtt_files")
+    @patch("vtt2minutes.cli.display_vtt_files_table")
+    @patch("vtt2minutes.cli.interactive_job_configuration")
+    @patch("vtt2minutes.cli.review_and_confirm_jobs")
+    @patch("vtt2minutes.cli.BatchProcessor")
+    def test_batch_processing_error(
+        self,
+        mock_processor_class,
+        mock_review,
+        mock_interactive,
+        mock_display,
+        mock_scan,
+    ) -> None:
+        """Test batch command when processing fails."""
+        from vtt2minutes.batch import BatchJob
+        from vtt2minutes.cli import batch
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            vtt_file = Path(temp_dir) / "meeting.vtt"
+            vtt_file.touch()
+
+            job = BatchJob.from_vtt_file(vtt_file)
+
+            mock_scan.return_value = [vtt_file]
+            mock_interactive.return_value = [job]
+            mock_review.return_value = (True, [job])
+
+            mock_processor = Mock()
+            mock_processor.process_batch.side_effect = Exception("Processing error")
+            mock_processor_class.return_value = mock_processor
+
+            runner = CliRunner()
+            result = runner.invoke(
+                batch,
+                [
+                    temp_dir,
+                    "--bedrock-model",
+                    "anthropic.claude-3-sonnet-20241022-v2:0",
+                ],
+            )
+
+            assert result.exit_code == 1
+            assert "予期しないエラーが発生しました" in result.output
+
+    def test_batch_keyboard_interrupt(self) -> None:
+        """Test batch command keyboard interrupt handling."""
+        from vtt2minutes.cli import batch
+
+        with patch("vtt2minutes.cli.scan_vtt_files") as mock_scan:
+            mock_scan.side_effect = KeyboardInterrupt()
+
+            runner = CliRunner()
+            with tempfile.TemporaryDirectory() as temp_dir:
+                result = runner.invoke(
+                    batch,
+                    [
+                        temp_dir,
+                        "--bedrock-model",
+                        "anthropic.claude-3-sonnet-20241022-v2:0",
+                    ],
+                )
+
+                assert result.exit_code == 130
+                assert "処理が中断されました" in result.output

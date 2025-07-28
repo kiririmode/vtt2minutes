@@ -383,11 +383,9 @@ class VTTParser:
         Returns:
             List of cues within the time range
         """
-
-        def time_range_predicate(cue: VTTCue) -> bool:
-            return cue.start_seconds >= start_seconds and cue.end_seconds <= end_seconds
-
-        return self._filter_cues(cues, time_range_predicate)
+        return self.filter_by_criteria(
+            cues, start_seconds=start_seconds, end_seconds=end_seconds
+        )
 
     def filter_by_criteria(
         self,
@@ -407,14 +405,33 @@ class VTTParser:
         Returns:
             List of cues matching all specified criteria
         """
+        return self._filter_cues(
+            cues, self._create_criteria_predicate(speaker, start_seconds, end_seconds)
+        )
+
+    def _create_criteria_predicate(
+        self,
+        speaker: str | None,
+        start_seconds: float | None,
+        end_seconds: float | None,
+    ) -> Callable[[VTTCue], bool]:
+        """Create a predicate function for filtering cues by criteria."""
 
         def combined_predicate(cue: VTTCue) -> bool:
-            if speaker is not None and cue.speaker != speaker:
-                return False
-            if start_seconds is not None and cue.start_seconds < start_seconds:
-                return False
-            if end_seconds is not None and cue.end_seconds > end_seconds:
-                return False
-            return True
+            return self._matches_speaker(cue, speaker) and self._matches_time_range(
+                cue, start_seconds, end_seconds
+            )
 
-        return self._filter_cues(cues, combined_predicate)
+        return combined_predicate
+
+    def _matches_speaker(self, cue: VTTCue, speaker: str | None) -> bool:
+        """Check if cue matches speaker criteria."""
+        return speaker is None or cue.speaker == speaker
+
+    def _matches_time_range(
+        self, cue: VTTCue, start_seconds: float | None, end_seconds: float | None
+    ) -> bool:
+        """Check if cue matches time range criteria."""
+        start_ok = start_seconds is None or cue.start_seconds >= start_seconds
+        end_ok = end_seconds is None or cue.end_seconds <= end_seconds
+        return start_ok and end_ok
