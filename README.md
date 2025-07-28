@@ -118,6 +118,23 @@ vtt2minutes meeting.vtt --bedrock-inference-profile-id apac-claude-sonnet-4
 vtt2minutes meeting.vtt --verbose --stats
 ```
 
+### VTTファイル情報の確認
+
+処理前にVTTファイルの内容を確認できます：
+
+```bash
+# VTTファイルの基本情報を表示
+vtt2minutes info meeting.vtt
+```
+
+この機能により以下の情報を確認できます：
+- **キュー数**: 発言の総数
+- **参加者数**: 会議参加者の人数
+- **総時間**: 会議の長さ（秒・分）
+- **総文字数**: テキストの文字数
+- **参加者別統計**: 各参加者の発言数、文字数、時間
+- **サンプル表示**: 最初の3つの発言内容
+
 ### 高度なオプション
 
 ```bash
@@ -179,6 +196,34 @@ cat chatgpt_prompt.txt
 - **柔軟なAI選択**: ChatGPT、Claude、Geminiなど好みのAIサービスを選択可能
 - **簡単操作**: 生成されたプロンプトをコピー&ペーストするだけ
 - **同じ品質**: Bedrockと同じプロンプトテンプレートを使用
+
+### バッチ処理機能
+
+複数のVTTファイルを一括で処理できます：
+
+```bash
+# ディレクトリ内の全VTTファイルを処理
+vtt2minutes batch ./meetings
+
+# 出力ディレクトリを指定
+vtt2minutes batch ./meetings --output-dir ./output
+
+# 非再帰的にスキャン（サブディレクトリを対象外）
+vtt2minutes batch ./meetings --no-recursive
+
+# 特定のBedrockモデルを使用
+vtt2minutes batch ./meetings --bedrock-model anthropic.claude-3-5-sonnet-20241022-v2:0
+
+# チャットプロンプトファイルを一括生成
+vtt2minutes batch ./meetings --chat-prompt-files
+```
+
+**バッチ処理の特徴：**
+- **対話式設定**: 各ファイルごとにタイトルと出力パスを個別設定可能
+- **一括処理**: 設定後はすべてのファイルを自動処理
+- **柔軟な出力**: 議事録またはチャットプロンプトファイルの選択
+- **進捗表示**: 処理状況をリアルタイムで表示
+- **エラー継続**: 一部ファイルでエラーが発生しても他のファイルの処理を継続
 
 ## 設定ファイル
 

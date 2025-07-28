@@ -654,7 +654,8 @@ def main(
 
         vtt2minutes meeting.vtt -o minutes.md -t "Project Planning Meeting"
 
-        vtt2minutes meeting.vtt --bedrock-model anthropic.claude-3-sonnet-20241022-v2:0
+        vtt2minutes meeting.vtt --bedrock-model \\
+            anthropic.claude-3-5-sonnet-20241022-v2:0
 
         vtt2minutes meeting.vtt --chat-prompt-file prompt.txt
     """
@@ -1032,7 +1033,7 @@ def batch(
         vtt2minutes batch ./meetings --output-dir ./output
 
         vtt2minutes batch ./meetings --bedrock-model \
-            anthropic.claude-3-sonnet-20241022-v2:0
+            anthropic.claude-3-5-sonnet-20241022-v2:0
     """
     try:
         # Validate Bedrock configuration if not using chat prompt files
