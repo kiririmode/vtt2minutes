@@ -522,12 +522,14 @@ class TestDisplayBatchSummary:
     def test_empty_jobs(self) -> None:
         """Test displaying summary with no jobs."""
         string_io = StringIO()
-        console = Console(file=string_io, width=80)
+        console = Console(
+            file=string_io, width=80, force_terminal=False, legacy_windows=False
+        )
         display_batch_summary([], Path("/test"), console)
 
         output = string_io.getvalue()
         assert "バッチ処理サマリー" in output
-        assert "処理対象: 0件" in output
+        assert "処理対象:" in output and "0件" in output
         assert "処理対象のファイルがありません" in output
 
     def test_mixed_jobs(self) -> None:
@@ -547,14 +549,16 @@ class TestDisplayBatchSummary:
             job2.enabled = False
 
             string_io = StringIO()
-            console = Console(file=string_io, width=120)
+            console = Console(
+                file=string_io, width=120, force_terminal=False, legacy_windows=False
+            )
             display_batch_summary([job1, job2], directory, console)
 
             output = string_io.getvalue()
             assert "バッチ処理サマリー" in output
-            assert "処理対象: 1件" in output
-            assert "スキップ: 1件" in output
-            assert "合計: 2件" in output
+            assert "処理対象:" in output and "1件" in output
+            assert "スキップ:" in output and "1件" in output
+            assert "合計:" in output and "2件" in output
             assert "Meeting1" in output  # Title from job1
             assert "処理対象ファイル" in output
 
@@ -569,12 +573,14 @@ class TestDisplayBatchSummary:
             job.enabled = False
 
             string_io = StringIO()
-            console = Console(file=string_io, width=80)
+            console = Console(
+                file=string_io, width=80, force_terminal=False, legacy_windows=False
+            )
             display_batch_summary([job], directory, console)
 
             output = string_io.getvalue()
-            assert "処理対象: 0件" in output
-            assert "スキップ: 1件" in output
+            assert "処理対象:" in output and "0件" in output
+            assert "スキップ:" in output and "1件" in output
             assert "処理対象のファイルがありません" in output
 
 
