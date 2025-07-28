@@ -879,3 +879,222 @@ class TestBatchProcessor:
             assert len(results) == 2
             assert results[0].success is False
             assert results[1].success is True
+
+
+class TestDisplayBatchSummaryAdditional:
+    """Additional tests for display_batch_summary function to improve coverage."""
+
+    def test_display_summary_none_console(self) -> None:
+        """Test that default console is created when None is passed."""
+        with TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            vtt_file = base_dir / "meeting.vtt"
+            vtt_file.touch()
+
+            job = BatchJob.from_vtt_file(vtt_file)
+            # This should not raise an error and should create a default console
+            display_batch_summary([job], base_dir, console=None)
+
+
+class TestDisplayVttFilesTableAdditional:
+    """Additional tests for display_vtt_files_table function to improve coverage."""
+
+    def test_display_files_value_error_path(self) -> None:
+        """Test handling of files outside base directory."""
+        with TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            # Create a file outside the base directory
+            external_dir = Path(temp_dir).parent / "external"
+            external_dir.mkdir(exist_ok=True)
+            external_file = external_dir / "external.vtt"
+            external_file.write_text("test content")
+
+            string_io = StringIO()
+            console = Console(file=string_io, width=120)
+            display_vtt_files_table([external_file], base_dir, console)
+
+            output = string_io.getvalue()
+            assert "external.vtt" in output
+
+            # Cleanup
+            external_file.unlink()
+            external_dir.rmdir()
+
+
+class TestInteractiveFunctionsAdditional:
+    """Additional tests for interactive functions to improve coverage."""
+
+    @patch("vtt2minutes.batch.Prompt.ask")
+    def test_prompt_for_output_path_keyboard_interrupt(self, mock_prompt) -> None:
+        """Test handling keyboard interrupt in output path prompt."""
+        with TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            default_output = base_dir / "output.md"
+            default_rel = Path("output.md")
+
+            mock_prompt.side_effect = KeyboardInterrupt()
+            console = Console()
+
+            result = _prompt_for_output_path(
+                default_output, default_rel, base_dir, console
+            )
+            assert result == default_output
+
+
+class TestBatchJobEditing:
+    """Tests for batch job editing functionality."""
+
+    @patch("vtt2minutes.batch.Prompt.ask")
+    def test_edit_job_configuration_invalid_choice(self, mock_prompt) -> None:
+        """Test handling invalid choice in job editing."""
+        with TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            vtt_file = base_dir / "meeting.vtt"
+            vtt_file.touch()
+
+            job = BatchJob.from_vtt_file(vtt_file)
+            jobs = [job]
+
+            # Simulate invalid input followed by exit
+            mock_prompt.side_effect = ["invalid", "99", "0"]
+            console = Console()
+
+            from vtt2minutes.batch import _edit_job_configuration
+
+            result = _edit_job_configuration(jobs, base_dir, console)
+            assert result == jobs
+
+
+class TestGetUserChoice:
+    """Tests for _get_user_choice function."""
+
+    def test_get_user_choice_default(self) -> None:
+        """Test getting default user choice without conflicts."""
+        console = Console()
+
+        from vtt2minutes.batch import _get_user_choice
+
+        # This will be mocked at a higher level in actual tests
+        # but we can test the function signature
+        with patch("vtt2minutes.batch.Prompt.ask") as mock_prompt:
+            mock_prompt.return_value = "y"
+            result = _get_user_choice([], console)
+            assert result == "y"
+
+
+class TestBatchProcessorAdditional:
+    """Additional tests for BatchProcessor to improve coverage."""
+
+    @patch("vtt2minutes.batch.VTTFileProcessor")
+    @patch("vtt2minutes.batch.Confirm.ask")
+    def test_process_failed_job_abort(self, mock_confirm, mock_processor_class) -> None:
+        """Test processing failed job with abort choice."""
+        with TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            vtt_file1 = base_dir / "meeting1.vtt"
+            vtt_file2 = base_dir / "meeting2.vtt"
+            vtt_file1.touch()
+            vtt_file2.touch()
+
+            job1 = BatchJob.from_vtt_file(vtt_file1)
+            job2 = BatchJob.from_vtt_file(vtt_file2)
+
+            # Mock first job failing
+            mock_processor = Mock()
+            mock_result1 = ProcessingResult(
+                success=False, input_file=vtt_file1, error="Test error"
+            )
+            mock_processor.process_file.return_value = mock_result1
+            mock_processor_class.return_value = mock_processor
+
+            # User chooses to abort after error
+            mock_confirm.return_value = False
+
+            config = ProcessingConfig()
+            processor = BatchProcessor(config)
+
+            results = processor.process_batch([job1, job2])
+
+            # Should only have one result (the failed one) because processing
+            # was aborted
+            assert len(results) == 1
+            assert results[0].success is False
+
+
+class TestErrorHandlingCoverage:
+    """Tests to improve coverage of error handling paths."""
+
+    def test_display_vtt_files_table_permission_error(self) -> None:
+        """Test handling permission errors when accessing files."""
+        with TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+
+            # Create a mock file that will raise OSError
+            mock_file = Mock(spec=Path)
+            mock_file.name = "test.vtt"
+            mock_file.relative_to.side_effect = ValueError("Outside base directory")
+            mock_file.parent = Path("/some/path")
+            mock_file.stat.side_effect = OSError("Permission denied")
+
+            string_io = StringIO()
+            console = Console(file=string_io, width=80)
+            display_vtt_files_table([mock_file], base_dir, console)
+
+            output = string_io.getvalue()
+            assert "test.vtt" in output
+
+    def test_prompt_for_title_simple(self) -> None:
+        """Test simple title prompt functionality."""
+        console = Console()
+
+        with patch("vtt2minutes.batch.Prompt.ask") as mock_prompt:
+            mock_prompt.return_value = "Custom Title"
+            result = _prompt_for_title("Default Title", console)
+            assert result == "Custom Title"
+
+    def test_prompt_for_output_path_simple(self) -> None:
+        """Test simple output path prompt functionality."""
+        with TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            default_output = base_dir / "output.md"
+            default_rel = Path("output.md")
+
+            console = Console()
+
+            with patch("vtt2minutes.batch.Prompt.ask") as mock_prompt:
+                mock_prompt.return_value = "custom.md"
+                result = _prompt_for_output_path(
+                    default_output, default_rel, base_dir, console
+                )
+                assert result == base_dir / "custom.md"
+
+    def test_prompt_for_processing_confirmation_simple(self) -> None:
+        """Test simple processing confirmation functionality."""
+        console = Console()
+
+        with patch("vtt2minutes.batch.Confirm.ask") as mock_confirm:
+            mock_confirm.return_value = True
+            result = _prompt_for_processing_confirmation(console)
+            assert result is True
+
+    def test_batch_job_from_vtt_file_name_processing(self) -> None:
+        """Test title generation from various VTT file names."""
+        with TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+
+            # Test various filename patterns
+            test_cases = [
+                ("simple.vtt", "Simple"),
+                ("team-meeting_notes.vtt", "Team Meeting Notes"),
+                ("UPPER_CASE_FILE.vtt", "Upper Case File"),
+                ("meeting.with.dots.vtt", "Meeting.With.Dots"),
+            ]
+
+            for filename, expected_title in test_cases:
+                vtt_file = base_dir / filename
+                vtt_file.touch()
+
+                job = BatchJob.from_vtt_file(vtt_file)
+                assert job.title == expected_title
+
+                vtt_file.unlink()  # Clean up
