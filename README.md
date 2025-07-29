@@ -158,6 +158,9 @@ vtt2minutes meeting.vtt --chat-prompt-file prompt.txt
 
 # 既存ファイルを上書きする
 vtt2minutes meeting.vtt --overwrite
+
+# 処理後にVTTファイルを削除する
+vtt2minutes meeting.vtt --delete-vtt-file
 ```
 
 ### ファイルの上書き
@@ -197,6 +200,26 @@ cat chatgpt_prompt.txt
 - **簡単操作**: 生成されたプロンプトをコピー&ペーストするだけ
 - **同じ品質**: Bedrockと同じプロンプトテンプレートを使用
 
+### VTTファイル削除機能
+
+処理完了後に元のVTTファイルを自動削除できます：
+
+```bash
+# 処理完了後にVTTファイルを削除（確認プロンプト付き）
+vtt2minutes meeting.vtt --delete-vtt-file
+
+# バッチ処理で複数のVTTファイルを削除
+vtt2minutes batch ./meetings --delete-vtt-files
+```
+
+**削除機能の特徴：**
+- **安全な削除**: 処理が成功した場合のみVTTファイルを削除
+- **確認プロンプト**: 削除前にユーザーに確認を求める（通常コマンドのみ）
+- **バッチ対応**: 複数ファイルの一括削除も可能
+- **エラー時保護**: 処理が失敗した場合はVTTファイルを保護
+
+**注意**: この機能は元のVTTファイルを完全に削除します。重要なファイルについては事前にバックアップを取ることをお勧めします。
+
 ### バッチ処理機能
 
 複数のVTTファイルを一括で処理できます：
@@ -216,6 +239,9 @@ vtt2minutes batch ./meetings --bedrock-model anthropic.claude-3-5-sonnet-2024102
 
 # チャットプロンプトファイルを一括生成
 vtt2minutes batch ./meetings --chat-prompt-files
+
+# 処理後にVTTファイルを一括削除
+vtt2minutes batch ./meetings --delete-vtt-files
 ```
 
 **バッチ処理の特徴：**

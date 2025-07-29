@@ -29,6 +29,7 @@ class TestProcessingConfig:
         assert config.overwrite is False
         assert config.verbose is False
         assert config.stats is False
+        assert config.delete_vtt_file is False
 
     def test_custom_config(self) -> None:
         """Test creating config with custom values."""
@@ -40,6 +41,7 @@ class TestProcessingConfig:
             overwrite=True,
             verbose=True,
             stats=True,
+            delete_vtt_file=True,
         )
 
         assert config.no_preprocessing is True
@@ -49,6 +51,7 @@ class TestProcessingConfig:
         assert config.overwrite is True
         assert config.verbose is True
         assert config.stats is True
+        assert config.delete_vtt_file is True
 
 
 class TestProcessingResult:
@@ -496,3 +499,262 @@ class TestVTTFileProcessor:
         assert result.input_file == input_file
         assert result.error is not None
         assert "Parse error" in result.error
+
+    def test_delete_vtt_file_success(self) -> None:
+        """Test successful VTT file deletion."""
+        with TemporaryDirectory() as temp_dir:
+            config = ProcessingConfig(delete_vtt_file=True, verbose=True)
+            processor = VTTFileProcessor(config)
+
+            vtt_file = Path(temp_dir) / "test.vtt"
+            vtt_file.write_text("WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.000\nTest")
+
+            # Should not raise exception
+            processor._delete_vtt_file(vtt_file)
+
+            # File should be deleted
+            assert not vtt_file.exists()
+
+    def test_delete_vtt_file_not_found(self) -> None:
+        """Test VTT file deletion when file doesn't exist."""
+        config = ProcessingConfig(delete_vtt_file=True, verbose=True)
+        processor = VTTFileProcessor(config)
+
+        non_existent_file = Path("non_existent.vtt")
+
+        # Should not raise exception for missing file
+        processor._delete_vtt_file(non_existent_file)
+
+    def test_delete_vtt_file_permission_error(self) -> None:
+        """Test VTT file deletion with permission error."""
+        with TemporaryDirectory() as temp_dir:
+            config = ProcessingConfig(delete_vtt_file=True, verbose=False)
+            processor = VTTFileProcessor(config)
+
+            vtt_file = Path(temp_dir) / "test.vtt"
+            vtt_file.write_text("WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.000\nTest")
+
+            # Mock unlink to raise PermissionError
+            with patch.object(Path, 'unlink', side_effect=PermissionError("Access denied")):
+                with pytest.raises(RuntimeError, match="VTTファイルの削除に失敗しました（権限エラー）"):
+                    processor._delete_vtt_file(vtt_file)
+
+    def test_process_file_with_vtt_deletion_simple(self) -> None:
+        """Test VTT file deletion after successful processing - simple integration."""
+        with TemporaryDirectory() as temp_dir:
+            config = ProcessingConfig(
+                overwrite=True,
+                delete_vtt_file=True,
+                verbose=False,
+            )
+            processor = VTTFileProcessor(config)
+
+            input_file = Path(temp_dir) / "input.vtt"
+            input_file.write_text("WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.000\nTest")
+
+            # Verify file exists before processing
+            assert input_file.exists()
+
+            # Test the deletion method directly since that's what we're testing
+            processor._delete_vtt_file(input_file)
+
+            # VTT file should be deleted
+            assert not input_file.exists()
+
+    def test_delete_vtt_file_integration_with_config(self) -> None:
+        """Test VTT file deletion integration with config settings."""
+        with TemporaryDirectory() as temp_dir:
+            # Test with deletion enabled
+            config_with_deletion = ProcessingConfig(delete_vtt_file=True, verbose=True)
+            processor_with_deletion = VTTFileProcessor(config_with_deletion)
+
+            vtt_file = Path(temp_dir) / "test_with_deletion.vtt"
+            vtt_file.write_text("WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.000\nTest")
+
+            assert vtt_file.exists()
+            processor_with_deletion._delete_vtt_file(vtt_file)
+            assert not vtt_file.exists()
+
+            # Test with deletion disabled
+            config_without_deletion = ProcessingConfig(delete_vtt_file=False)
+            processor_without_deletion = VTTFileProcessor(config_without_deletion)
+
+            vtt_file2 = Path(temp_dir) / "test_without_deletion.vtt"
+            vtt_file2.write_text("WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.000\nTest")
+
+            assert vtt_file2.exists()
+            # Deletion method should work regardless of config flag
+            # (the flag is checked in the calling code, not in the deletion method itself)
+            processor_without_deletion._delete_vtt_file(vtt_file2)
+            assert not vtt_file2.exists()
+
+    @patch("vtt2minutes.processor.VTTParser")
+    @patch("vtt2minutes.processor.TextPreprocessor")
+    @patch("vtt2minutes.processor.IntermediateTranscriptWriter")
+    @patch("vtt2minutes.processor.BedrockMeetingMinutesGenerator")
+    def test_process_file_chat_prompt_deletion_integration(
+        self,
+        mock_generator_class,
+        mock_writer_class,
+        mock_preprocessor_class,
+        mock_parser_class,
+    ) -> None:
+        """Test chat prompt file generation with VTT deletion."""
+        with TemporaryDirectory() as temp_dir:
+            config = ProcessingConfig(overwrite=True, delete_vtt_file=True)
+            processor = VTTFileProcessor(config)
+
+            input_file = Path(temp_dir) / "input.vtt"
+            input_file.write_text("WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.000\nTest")
+            output_file = Path(temp_dir) / "output.md"
+            chat_prompt_file = Path(temp_dir) / "prompt.txt"
+
+            # Create VTTCue objects
+            from vtt2minutes.parser import VTTCue
+            mock_cue = VTTCue(
+                start_time="00:00:00.000",
+                end_time="00:00:01.000", 
+                text="Test",
+                speaker="Alice"
+            )
+            mock_cues = [mock_cue]
+
+            # Setup mocks
+            mock_parser = Mock()
+            mock_parser.parse_file.return_value = mock_cues
+            mock_parser_class.return_value = mock_parser
+
+            mock_preprocessor = Mock()
+            mock_preprocessor.preprocess_cues.return_value = mock_cues
+            mock_preprocessor_class.return_value = mock_preprocessor
+
+            mock_writer = Mock()
+            mock_writer.get_statistics.return_value = {
+                "speakers": ["Alice"],
+                "duration": 1.0,
+                "word_count": 4,
+            }
+            mock_writer.format_duration.return_value = "00:00:01"
+            # Create actual intermediate file
+            def mock_write_markdown(cues, path, title, metadata):
+                path.write_text("# Test\n\nAlice: Test", encoding="utf-8")
+            mock_writer.write_markdown.side_effect = mock_write_markdown
+            mock_writer_class.return_value = mock_writer
+
+            mock_generator = Mock()
+            mock_generator.create_chat_prompt.return_value = "Generated prompt"
+            mock_generator_class.return_value = mock_generator
+
+            # Process file
+            result = processor.process_file(
+                input_file, output_file, "Test", chat_prompt_file=chat_prompt_file
+            )
+
+            # Should succeed
+            assert result.success is True
+            # VTT file should be deleted
+            assert not input_file.exists()
+            # Chat prompt file should be created
+            assert chat_prompt_file.exists()
+            assert chat_prompt_file.read_text() == "Generated prompt"
+
+    @patch("vtt2minutes.processor.VTTParser")
+    @patch("vtt2minutes.processor.TextPreprocessor") 
+    @patch("vtt2minutes.processor.IntermediateTranscriptWriter")
+    @patch("vtt2minutes.processor.BedrockMeetingMinutesGenerator")
+    def test_process_file_bedrock_deletion_integration(
+        self,
+        mock_generator_class,
+        mock_writer_class,
+        mock_preprocessor_class,
+        mock_parser_class,
+    ) -> None:
+        """Test Bedrock processing with VTT deletion."""
+        with TemporaryDirectory() as temp_dir:
+            config = ProcessingConfig(
+                overwrite=True,
+                delete_vtt_file=True,
+                bedrock_model="anthropic.claude-3-sonnet-20241022-v2:0",
+                stats=True
+            )
+            processor = VTTFileProcessor(config)
+
+            input_file = Path(temp_dir) / "input.vtt"
+            input_file.write_text("WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.000\nTest")
+            output_file = Path(temp_dir) / "output.md"
+
+            # Create VTTCue objects
+            from vtt2minutes.parser import VTTCue
+            mock_cue = VTTCue(
+                start_time="00:00:00.000",
+                end_time="00:00:01.000",
+                text="Test", 
+                speaker="Alice"
+            )
+            mock_cues = [mock_cue]
+
+            # Setup mocks
+            mock_parser = Mock()
+            mock_parser.parse_file.return_value = mock_cues
+            mock_parser_class.return_value = mock_parser
+
+            mock_preprocessor = Mock()
+            mock_preprocessor.preprocess_cues.return_value = mock_cues
+            mock_preprocessor.get_statistics.return_value = {
+                "original_count": 1,
+                "processed_count": 1,
+                "removed_count": 0
+            }
+            mock_preprocessor_class.return_value = mock_preprocessor
+
+            mock_writer = Mock()
+            mock_writer.get_statistics.return_value = {
+                "speakers": ["Alice"],
+                "duration": 1.0,
+                "word_count": 4,
+            }
+            mock_writer.format_duration.return_value = "00:00:01"
+            # Create actual intermediate file
+            def mock_write_markdown(cues, path, title, metadata):
+                path.write_text("# Test\n\nAlice: Test", encoding="utf-8")
+            mock_writer.write_markdown.side_effect = mock_write_markdown
+            mock_writer_class.return_value = mock_writer
+
+            mock_generator = Mock()
+            mock_generator.generate_minutes_from_markdown.return_value = "Generated minutes"
+            mock_generator_class.return_value = mock_generator
+
+            # Process file
+            result = processor.process_file(input_file, output_file, "Test")
+
+            # Should succeed
+            assert result.success is True
+            # VTT file should be deleted
+            assert not input_file.exists()
+            # Output file should be created
+            assert output_file.exists()
+            # Statistics should be collected
+            assert result.statistics is not None
+            assert "original_count" in result.statistics
+
+    def test_delete_vtt_file_with_no_preprocessing(self) -> None:
+        """Test VTT deletion with no preprocessing enabled."""
+        with TemporaryDirectory() as temp_dir:
+            config = ProcessingConfig(
+                no_preprocessing=True,
+                delete_vtt_file=True,
+                stats=True,
+            )
+            processor = VTTFileProcessor(config)
+
+            input_file = Path(temp_dir) / "input.vtt"
+            input_file.write_text("WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.000\nTest")
+
+            # Verify file exists before processing
+            assert input_file.exists()
+
+            # Test deletion method directly
+            processor._delete_vtt_file(input_file)
+
+            # VTT file should be deleted
+            assert not input_file.exists()

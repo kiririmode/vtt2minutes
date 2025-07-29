@@ -1979,3 +1979,101 @@ class TestBatchCommand:
 
                 assert result.exit_code == 130
                 assert "処理が中断されました" in result.output
+
+class TestCLIDeleteFeature:
+    """Test cases for VTT file deletion feature."""
+
+    def _create_mock_writer_with_file_creation(self):
+        """Create a mock writer that actually creates intermediate files."""
+        mock_writer_instance = Mock()
+        mock_writer_instance.get_statistics.return_value = {
+            "speakers": ["Speaker"],
+            "duration": 5.0,
+            "word_count": 2,
+        }
+        mock_writer_instance.format_duration.return_value = "00:00:05"
+
+        # Mock write_markdown to create actual file
+        def mock_write_markdown(
+            cues: list[Any], path: Path, title: str, metadata: dict[str, Any]
+        ) -> None:
+            content = "# Mock Intermediate Content\n\nSpeaker: Hello"
+            path.write_text(content, encoding="utf-8")
+
+        mock_writer_instance.write_markdown.side_effect = mock_write_markdown
+        return mock_writer_instance
+
+    def test_delete_vtt_file_option_help(self) -> None:
+        """Test that --delete-vtt-file option appears in help."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["--help"])
+
+        assert result.exit_code == 0
+        assert "--delete-vtt-file" in result.output
+        assert "Delete VTT source file after successful" in result.output
+
+    @patch("vtt2minutes.cli.VTTParser")
+    @patch("vtt2minutes.cli.TextPreprocessor")
+    @patch("vtt2minutes.cli.IntermediateTranscriptWriter")
+    @patch("vtt2minutes.cli.BedrockMeetingMinutesGenerator")
+    @patch("vtt2minutes.cli._delete_vtt_file_with_confirmation")
+    def test_main_with_delete_vtt_file_option(
+        self,
+        mock_delete_confirmation,
+        mock_generator_class,
+        mock_writer_class,
+        mock_preprocessor_class,
+        mock_parser_class,
+    ) -> None:
+        """Test main command with --delete-vtt-file option."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            vtt_file = Path(temp_dir) / f"{uuid.uuid4()}.vtt"
+            vtt_file.write_text("WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.000\nTest")
+            output_file = Path(temp_dir) / "output.md"
+
+            # Setup mocks
+            mock_parser = Mock()
+            mock_cues = [Mock()]
+            mock_parser.parse_file.return_value = mock_cues
+            mock_parser.get_speakers.return_value = ["Speaker"]
+            mock_parser.get_duration.return_value = 5.0
+            mock_parser_class.return_value = mock_parser
+
+            mock_preprocessor = Mock()
+            mock_preprocessor.preprocess_cues.return_value = mock_cues
+            mock_preprocessor_class.return_value = mock_preprocessor
+
+            mock_writer_instance = self._create_mock_writer_with_file_creation()
+            mock_writer_class.return_value = mock_writer_instance
+
+            mock_generator = Mock()
+            mock_generator.generate_minutes_from_markdown.return_value = "Generated minutes"
+            mock_generator_class.return_value = mock_generator
+
+            runner = CliRunner()
+            result = runner.invoke(
+                main,
+                [
+                    str(vtt_file),
+                    "--output",
+                    str(output_file),
+                    "--bedrock-model",
+                    "anthropic.claude-3-sonnet-20241022-v2:0",
+                    "--delete-vtt-file",
+                    "--overwrite",
+                ],
+            )
+
+            assert result.exit_code == 0
+            mock_delete_confirmation.assert_called_once_with(vtt_file, False)
+
+    def test_batch_delete_vtt_files_option_help(self) -> None:
+        """Test that --delete-vtt-files option appears in batch help."""
+        from vtt2minutes.cli import batch
+
+        runner = CliRunner()
+        result = runner.invoke(batch, ["--help"])
+
+        assert result.exit_code == 0
+        assert "--delete-vtt-files" in result.output
+        assert "Delete VTT source files after successful" in result.output

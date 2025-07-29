@@ -515,6 +515,45 @@ def _display_statistics(
     console.print(f"短縮時間: {duration_reduction:.1f}秒")
 
 
+def _delete_vtt_file_with_confirmation(
+    vtt_file: Path, verbose: bool = False
+) -> None:
+    """Delete VTT file with user confirmation.
+
+    Args:
+        vtt_file: Path to VTT file to delete
+        verbose: Whether to show verbose output
+    """
+    try:
+        # Ask for confirmation unless in non-interactive mode
+        from rich.prompt import Confirm
+
+        if not Confirm.ask(
+            f"[yellow]VTTファイルを削除しますか？[/yellow] {vtt_file.name}",
+            default=False,
+            console=console,
+        ):
+            if verbose:
+                console.print("[yellow]VTTファイルの削除をキャンセルしました。[/yellow]")
+            return
+
+        # Delete the file
+        vtt_file.unlink()
+
+        if verbose:
+            console.print(f"[green]✓ VTTファイルを削除しました: {vtt_file}[/green]")
+        else:
+            console.print(f"[green]✓ VTTファイルを削除しました[/green]")
+
+    except FileNotFoundError:
+        if verbose:
+            console.print(f"[yellow]VTTファイルが見つかりません: {vtt_file}[/yellow]")
+    except PermissionError:
+        console.print(f"[red]VTTファイルの削除に失敗しました（権限エラー）: {vtt_file}[/red]")
+    except Exception as e:
+        console.print(f"[red]VTTファイルの削除に失敗しました: {e}[/red]")
+
+
 def _display_final_summary(output: Path, title: str | None, cues: list[VTTCue]) -> None:
     """Display final success message and summary."""
     console.print()
@@ -619,6 +658,11 @@ def _display_final_summary(output: Path, title: str | None, cues: list[VTTCue]) 
     is_flag=True,
     help="Overwrite existing output files without warning",
 )
+@click.option(
+    "--delete-vtt-file",
+    is_flag=True,
+    help="Delete VTT source file after successful processing",
+)
 def main(
     input_file: Path,
     output: Path | None,
@@ -638,6 +682,7 @@ def main(
     verbose: bool,
     stats: bool,
     overwrite: bool,
+    delete_vtt_file: bool,
 ) -> None:
     """Convert Microsoft Teams VTT transcripts to AI-powered meeting minutes.
 
@@ -729,6 +774,10 @@ def main(
 
         # Display final summary
         _display_final_summary(output, title, cues)
+
+        # Delete VTT file if requested and processing was successful
+        if delete_vtt_file:
+            _delete_vtt_file_with_confirmation(input_file, verbose)
 
     except KeyboardInterrupt:
         console.print("\n[yellow]処理が中断されました。[/yellow]")
@@ -900,6 +949,7 @@ def _create_processing_config(
     overwrite: bool,
     verbose: bool,
     stats: bool,
+    delete_vtt_file: bool = False,
 ) -> ProcessingConfig:
     """Create processing configuration."""
     return ProcessingConfig(
@@ -916,6 +966,7 @@ def _create_processing_config(
         overwrite=overwrite,
         verbose=verbose,
         stats=stats,
+        delete_vtt_file=delete_vtt_file,
     )
 
 
@@ -1000,6 +1051,11 @@ def _create_processing_config(
     is_flag=True,
     help="Overwrite existing output files without warning",
 )
+@click.option(
+    "--delete-vtt-files",
+    is_flag=True,
+    help="Delete VTT source files after successful processing",
+)
 def batch(
     directory: Path,
     output_dir: Path | None,
@@ -1019,6 +1075,7 @@ def batch(
     verbose: bool,
     stats: bool,
     overwrite: bool,
+    delete_vtt_files: bool,
 ) -> None:
     """Process multiple VTT files in a directory interactively.
 
@@ -1063,6 +1120,7 @@ def batch(
             overwrite,
             verbose,
             stats,
+            delete_vtt_files,
         )
 
         processor = BatchProcessor(config)
