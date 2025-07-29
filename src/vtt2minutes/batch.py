@@ -428,29 +428,41 @@ def interactive_job_configuration(
     return jobs
 
 
-def _prompt_for_title(default_title: str, console: Console) -> str:
-    """Prompt user for meeting title with default value.
+def _prompt_user_with_default(
+    label: str,
+    default_value: str,
+    console: Console,
+    validate_empty: bool = True,
+) -> str:
+    """Generic prompt function with default value and error handling.
 
     Args:
-        default_title: Default title to show
+        label: Label for the prompt
+        default_value: Default value to use
         console: Rich console instance
+        validate_empty: Whether to return default if empty
 
     Returns:
-        User-provided or default title
+        User-provided or default value
     """
     try:
-        title = Prompt.ask(
-            f"[yellow]タイトル[/yellow] [dim]\\[{default_title}][/dim]",
-            default=default_title,
+        result = Prompt.ask(
+            f"[yellow]{label}[/yellow] [dim]\\[{default_value}][/dim]",
+            default=default_value,
             console=console,
         ).strip()
 
-        if not title:
-            return default_title
-        return title
+        if not result and validate_empty:
+            return default_value
+        return result or default_value
     except (KeyboardInterrupt, EOFError):
         console.print("[yellow]\\n中断されました。デフォルト値を使用します。[/yellow]")
-        return default_title
+        return default_value
+
+
+def _prompt_for_title(default_title: str, console: Console) -> str:
+    """Prompt user for meeting title with default value."""
+    return _prompt_user_with_default("タイトル", default_title, console)
 
 
 def _prompt_for_output_path(
@@ -470,25 +482,19 @@ def _prompt_for_output_path(
     Returns:
         User-provided or default output path
     """
-    try:
-        output_str = Prompt.ask(
-            f"[yellow]出力先[/yellow] [dim]\\[{default_output_rel}][/dim]",
-            default=str(default_output_rel),
-            console=console,
-        ).strip()
+    output_str = _prompt_user_with_default(
+        "出力先", str(default_output_rel), console, validate_empty=False
+    )
 
-        if not output_str:
-            return default_output
-
-        # Convert to Path and handle relative paths
-        output_path = Path(output_str)
-        if not output_path.is_absolute():
-            output_path = base_directory / output_path
-
-        return output_path
-    except (KeyboardInterrupt, EOFError):
-        console.print("[yellow]\\n中断されました。デフォルト値を使用します。[/yellow]")
+    if not output_str:
         return default_output
+
+    # Convert to Path and handle relative paths
+    output_path = Path(output_str)
+    if not output_path.is_absolute():
+        output_path = base_directory / output_path
+
+    return output_path
 
 
 def _prompt_for_processing_confirmation(console: Console) -> bool:
@@ -858,51 +864,66 @@ class BatchProcessor:
         if failed:
             self._display_failure_table(failed)
 
-    def _display_success_table(self, results: list[ProcessingResult]) -> None:
-        """Display table of successful processing results."""
-        table = Table(show_header=True, header_style="bold green")
-        table.add_column("No.", style="dim", width=4, justify="right")
-        table.add_column("入力ファイル", style="cyan", min_width=25)
-        table.add_column("出力ファイル", style="green", min_width=25)
+    def _create_results_table(
+        self,
+        results: list[ProcessingResult],
+        is_success: bool,
+    ) -> Table:
+        """Create a results table for success or failure display.
+
+        Args:
+            results: List of processing results
+            is_success: True for success table, False for failure table
+
+        Returns:
+            Configured Rich Table
+        """
+        if is_success:
+            table = Table(show_header=True, header_style="bold green")
+            table.add_column("No.", style="dim", width=4, justify="right")
+            table.add_column("入力ファイル", style="cyan", min_width=25)
+            table.add_column("出力ファイル", style="green", min_width=25)
+        else:
+            table = Table(show_header=True, header_style="bold red")
+            table.add_column("No.", style="dim", width=4, justify="right")
+            table.add_column("入力ファイル", style="cyan", min_width=25)
+            table.add_column("エラー", style="red", min_width=30)
 
         for i, result in enumerate(results, 1):
             try:
-                input_rel = result.input_file.relative_to(Path.cwd())
-                output_rel = (
-                    result.output_file.relative_to(Path.cwd())
-                    if result.output_file
-                    else "?"
-                )
+                input_rel = str(result.input_file.relative_to(Path.cwd()))
             except ValueError:
-                input_rel = result.input_file
-                output_rel = result.output_file or "?"
+                input_rel = str(result.input_file)
 
-            table.add_row(str(i), str(input_rel), str(output_rel))
+            if is_success:
+                try:
+                    output_rel = (
+                        str(result.output_file.relative_to(Path.cwd()))
+                        if result.output_file
+                        else "?"
+                    )
+                except ValueError:
+                    output_rel = str(result.output_file) if result.output_file else "?"
+                table.add_row(str(i), input_rel, output_rel)
+            else:
+                # Truncate long error messages
+                error_msg = result.error or "不明なエラー"
+                if len(error_msg) > 50:
+                    error_msg = error_msg[:47] + "..."
+                table.add_row(str(i), input_rel, error_msg)
 
+        return table
+
+    def _display_success_table(self, results: list[ProcessingResult]) -> None:
+        """Display table of successful processing results."""
+        table = self._create_results_table(results, is_success=True)
         self.console.print("[bold green]成功したファイル:[/bold green]")
         self.console.print(table)
         self.console.print()
 
     def _display_failure_table(self, results: list[ProcessingResult]) -> None:
         """Display table of failed processing results."""
-        table = Table(show_header=True, header_style="bold red")
-        table.add_column("No.", style="dim", width=4, justify="right")
-        table.add_column("入力ファイル", style="cyan", min_width=25)
-        table.add_column("エラー", style="red", min_width=30)
-
-        for i, result in enumerate(results, 1):
-            try:
-                input_rel = result.input_file.relative_to(Path.cwd())
-            except ValueError:
-                input_rel = result.input_file
-
-            # Truncate long error messages
-            error_msg = result.error or "不明なエラー"
-            if len(error_msg) > 50:
-                error_msg = error_msg[:47] + "..."
-
-            table.add_row(str(i), str(input_rel), error_msg)
-
+        table = self._create_results_table(results, is_success=False)
         self.console.print("[bold red]失敗したファイル:[/bold red]")
         self.console.print(table)
         self.console.print()

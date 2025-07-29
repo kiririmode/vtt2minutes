@@ -558,19 +558,37 @@ class TextPreprocessor:
             and self._has_meaningful_content(cue)
         )
 
+    def _check_cue_property(self, cue: VTTCue, check_type: str) -> bool:
+        """Generic cue property checker.
+
+        Args:
+            cue: VTTCue to check
+            check_type: Type of check ('text_length', 'duration', 'meaningful')
+
+        Returns:
+            True if property check passes
+        """
+        if check_type == "text_length":
+            return len(cue.text.strip()) >= self.config.min_text_length
+        elif check_type == "duration":
+            return cue.duration >= self.config.min_duration
+        elif check_type == "meaningful":
+            meaningless_texts = {"。", "、", ".", ","}
+            stripped_text = cue.text.strip()
+            return bool(stripped_text and stripped_text not in meaningless_texts)
+        return False
+
     def _has_valid_text_length(self, cue: VTTCue) -> bool:
         """Check if cue has valid text length."""
-        return len(cue.text.strip()) >= self.config.min_text_length
+        return self._check_cue_property(cue, "text_length")
 
     def _has_valid_duration(self, cue: VTTCue) -> bool:
         """Check if cue has valid duration."""
-        return cue.duration >= self.config.min_duration
+        return self._check_cue_property(cue, "duration")
 
     def _has_meaningful_content(self, cue: VTTCue) -> bool:
         """Check if cue has meaningful content."""
-        meaningless_texts = {"。", "、", ".", ","}
-        stripped_text = cue.text.strip()
-        return bool(stripped_text and stripped_text not in meaningless_texts)
+        return self._check_cue_property(cue, "meaningful")
 
     def _remove_duplicates(self, cues: list[VTTCue]) -> list[VTTCue]:
         """Remove duplicate or very similar cues.

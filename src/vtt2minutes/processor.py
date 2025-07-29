@@ -38,6 +38,7 @@ class ProcessingConfig:
     overwrite: bool = False
     verbose: bool = False
     stats: bool = False
+    delete_vtt_file: bool = False
 
 
 @dataclass
@@ -170,6 +171,11 @@ class VTTFileProcessor:
                     self._generate_chat_prompt(
                         intermediate_path, chat_prompt_file, title, progress
                     )
+
+                    # Delete VTT file if requested and processing was successful
+                    if self.config.delete_vtt_file:
+                        self._delete_vtt_file(input_file)
+
                     return ProcessingResult(
                         success=True,
                         input_file=input_file,
@@ -189,6 +195,10 @@ class VTTFileProcessor:
             stats = None
             if self.config.stats:
                 stats = self._collect_statistics(original_cues, cues, preprocessor)
+
+            # Delete VTT file if requested and processing was successful
+            if self.config.delete_vtt_file:
+                self._delete_vtt_file(input_file)
 
             return ProcessingResult(
                 success=True,
@@ -222,18 +232,20 @@ class VTTFileProcessor:
         self, parser: VTTParser, input_file: Path, progress: Progress
     ) -> list[VTTCue]:
         """Parse VTT file and return cues."""
-        task = progress.add_task("VTTファイルを解析中...", total=None)
-        try:
-            cues = parser.parse_file(input_file)
-            progress.update(task, description="✓ VTTファイル解析完了")
 
+        def parse_operation() -> list[VTTCue]:
+            cues = parser.parse_file(input_file)
             if self.config.verbose:
                 self._display_parsing_results(parser, cues)
-
             return cues
-        except Exception as e:
-            progress.stop()
-            raise RuntimeError(f"VTTファイルの解析に失敗しました: {e}") from e
+
+        return self._execute_with_progress(
+            parse_operation,
+            "VTTファイルを解析中...",
+            "✓ VTTファイル解析完了",
+            "VTTファイルの解析に失敗しました",
+            progress,
+        )
 
     def _display_parsing_results(self, parser: VTTParser, cues: list[VTTCue]) -> None:
         """Display verbose parsing results."""
@@ -254,23 +266,24 @@ class VTTFileProcessor:
             return cues
 
         original_count = len(cues)
-        task = progress.add_task("テキストを前処理中...", total=None)
 
-        try:
+        def preprocess_operation() -> list[VTTCue]:
             processed_cues = preprocessor.preprocess_cues(cues)
-            progress.update(task, description="✓ 前処理完了")
-
             if self.config.verbose:
                 self.console.print(f"前処理後のキュー数: {len(processed_cues)}")
                 removed = original_count - len(processed_cues)
                 if removed > 0:
                     self.console.print(f"除去されたキュー数: {removed}")
                 self.console.print()
-
             return processed_cues
-        except Exception as e:
-            progress.stop()
-            raise RuntimeError(f"前処理に失敗しました: {e}") from e
+
+        return self._execute_with_progress(
+            preprocess_operation,
+            "テキストを前処理中...",
+            "✓ 前処理完了",
+            "前処理に失敗しました",
+            progress,
+        )
 
     def _save_intermediate_file(
         self,
@@ -414,20 +427,22 @@ class VTTFileProcessor:
 
     def _save_output_file(self, output: Path, content: str, progress: Progress) -> None:
         """Save final output file."""
-        task = progress.add_task("ファイルを保存中...", total=None)
 
-        try:
+        def save_operation() -> None:
             if output.exists() and not self.config.overwrite:
                 raise FileExistsError(
                     f"Output file already exists: {output}. "
                     "Use --overwrite to overwrite existing files."
                 )
-
             output.write_text(content, encoding="utf-8")
-            progress.update(task, description="✓ 保存完了")
-        except Exception as e:
-            progress.stop()
-            raise RuntimeError(f"ファイルの保存に失敗しました: {e}") from e
+
+        self._execute_with_progress(
+            save_operation,
+            "ファイルを保存中...",
+            "✓ 保存完了",
+            "ファイルの保存に失敗しました",
+            progress,
+        )
 
     def _collect_statistics(
         self,
@@ -440,3 +455,45 @@ class VTTFileProcessor:
             return {}
 
         return preprocessor.get_statistics(original_cues, processed_cues)
+
+    def _delete_vtt_file(self, vtt_file: Path) -> None:
+        """Delete VTT file after successful processing.
+
+        Args:
+            vtt_file: Path to VTT file to delete
+
+        Raises:
+            RuntimeError: If deletion fails
+        """
+        try:
+            if self.config.verbose:
+                self.console.print(
+                    f"[yellow]VTTファイルを削除しています: {vtt_file}[/yellow]"
+                )
+
+            vtt_file.unlink()
+
+            if self.config.verbose:
+                self.console.print(
+                    f"[green]✓ VTTファイルを削除しました: {vtt_file}[/green]"
+                )
+            else:
+                self.console.print(
+                    f"[green]✓ VTTファイルを削除しました: {vtt_file.name}[/green]"
+                )
+
+        except FileNotFoundError:
+            if self.config.verbose:
+                self.console.print(
+                    f"[yellow]VTTファイルが見つかりません: {vtt_file}[/yellow]"
+                )
+        except PermissionError as e:
+            error_msg = f"VTTファイルの削除に失敗しました（権限エラー）: {vtt_file}"
+            if self.config.verbose:
+                self.console.print(f"[red]{error_msg}[/red]")
+            raise RuntimeError(error_msg) from e
+        except Exception as e:
+            error_msg = f"VTTファイルの削除に失敗しました: {e}"
+            if self.config.verbose:
+                self.console.print(f"[red]{error_msg}[/red]")
+            raise RuntimeError(error_msg) from e

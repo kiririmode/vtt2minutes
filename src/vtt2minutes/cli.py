@@ -2,6 +2,7 @@
 
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -515,6 +516,66 @@ def _display_statistics(
     console.print(f"短縮時間: {duration_reduction:.1f}秒")
 
 
+def _delete_vtt_file_with_confirmation(vtt_file: Path, verbose: bool = False) -> None:
+    """Delete VTT file with user confirmation.
+
+    Args:
+        vtt_file: Path to VTT file to delete
+        verbose: Whether to show verbose output
+    """
+    try:
+        # Ask for confirmation unless in non-interactive mode
+        from rich.prompt import Confirm
+
+        if not Confirm.ask(
+            f"[yellow]VTTファイルを削除しますか？[/yellow] {vtt_file.name}",
+            default=False,
+            console=console,
+        ):
+            if verbose:
+                console.print(
+                    "[yellow]VTTファイルの削除をキャンセルしました。[/yellow]"
+                )
+            return
+
+        # Delete the file
+        vtt_file.unlink()
+
+        if verbose:
+            console.print(f"[green]✓ VTTファイルを削除しました: {vtt_file}[/green]")
+        else:
+            console.print("[green]✓ VTTファイルを削除しました[/green]")
+
+    except FileNotFoundError:
+        if verbose:
+            console.print(f"[yellow]VTTファイルが見つかりません: {vtt_file}[/yellow]")
+    except PermissionError:
+        console.print(
+            f"[red]VTTファイルの削除に失敗しました（権限エラー）: {vtt_file}[/red]"
+        )
+    except Exception as e:
+        console.print(f"[red]VTTファイルの削除に失敗しました: {e}[/red]")
+
+
+def _handle_keyboard_interrupt() -> None:
+    """Handle keyboard interrupt consistently."""
+    console.print("\n[yellow]処理が中断されました。[/yellow]")
+    sys.exit(130)
+
+
+def _handle_unexpected_error(error: Exception, verbose: bool = False) -> None:
+    """Handle unexpected errors consistently.
+
+    Args:
+        error: The exception that occurred
+        verbose: Whether to show detailed error information
+    """
+    console.print(f"\n[red]予期しないエラーが発生しました: {error}[/red]")
+    if verbose:
+        console.print_exception()
+    sys.exit(1)
+
+
 def _display_final_summary(output: Path, title: str | None, cues: list[VTTCue]) -> None:
     """Display final success message and summary."""
     console.print()
@@ -619,6 +680,11 @@ def _display_final_summary(output: Path, title: str | None, cues: list[VTTCue]) 
     is_flag=True,
     help="Overwrite existing output files without warning",
 )
+@click.option(
+    "--delete-vtt-file",
+    is_flag=True,
+    help="Delete VTT source file after successful processing",
+)
 def main(
     input_file: Path,
     output: Path | None,
@@ -638,6 +704,7 @@ def main(
     verbose: bool,
     stats: bool,
     overwrite: bool,
+    delete_vtt_file: bool,
 ) -> None:
     """Convert Microsoft Teams VTT transcripts to AI-powered meeting minutes.
 
@@ -659,85 +726,40 @@ def main(
 
         vtt2minutes meeting.vtt --chat-prompt-file prompt.txt
     """
-    try:
-        # Determine output file path
-        if output is None:
-            output = input_file.with_suffix(".md")
+    # Create command options
+    options = _create_command_options(
+        no_preprocessing,
+        min_duration,
+        merge_threshold,
+        duplicate_threshold,
+        filter_words_file,
+        replacement_rules_file,
+        bedrock_model,
+        bedrock_inference_profile_id,
+        bedrock_region,
+        prompt_template,
+        verbose,
+        stats,
+        overwrite,
+    )
 
-        # Display header and initialize components
-        _display_header(verbose, input_file, output)
-        parser, preprocessor = _initialize_components(
-            min_duration,
-            merge_threshold,
-            duplicate_threshold,
-            filter_words_file,
-            replacement_rules_file,
+    # Determine output file path
+    if output is None:
+        output = input_file.with_suffix(".md")
+
+    # Execute workflow with error handling
+    def workflow() -> None:
+        _execute_single_file_workflow(
+            input_file,
+            output,
+            title,
+            options,
+            intermediate_file,
+            chat_prompt_file,
+            delete_vtt_file,
         )
 
-        # Process with progress indication
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-            transient=True,
-        ) as progress:
-            # Step 1: Parse VTT file
-            cues = _parse_vtt_file(parser, input_file, progress, verbose)
-
-            # Step 2: Preprocess (if enabled)
-            original_cues = cues.copy()
-            cues = _preprocess_cues(
-                preprocessor, cues, no_preprocessing, progress, verbose
-            )
-
-            # Step 3: Save intermediate file
-            intermediate_path = _save_intermediate_file(
-                cues, output, intermediate_file, title, progress, verbose, overwrite
-            )
-
-            # Step 4: Generate chat prompt file if requested (skips Bedrock)
-            if chat_prompt_file:
-                _generate_chat_prompt(
-                    intermediate_path,
-                    chat_prompt_file,
-                    title,
-                    bedrock_region,
-                    prompt_template,
-                    progress,
-                    verbose,
-                    overwrite,
-                )
-                return
-
-            # Step 5: Generate AI-powered meeting minutes using Bedrock
-            markdown_content = _generate_bedrock_minutes(
-                intermediate_path,
-                title,
-                bedrock_model,
-                bedrock_inference_profile_id,
-                bedrock_region,
-                prompt_template,
-                progress,
-                verbose,
-            )
-
-            # Step 6: Save output file
-            _save_output_file(output, markdown_content, progress, overwrite)
-
-        # Show statistics if requested
-        _display_statistics(stats, no_preprocessing, original_cues, cues, preprocessor)
-
-        # Display final summary
-        _display_final_summary(output, title, cues)
-
-    except KeyboardInterrupt:
-        console.print("\n[yellow]処理が中断されました。[/yellow]")
-        sys.exit(130)
-    except Exception as e:
-        console.print(f"\n[red]予期しないエラーが発生しました: {e}[/red]")
-        if verbose:
-            console.print_exception()
-        sys.exit(1)
+    _execute_with_error_handling(workflow, verbose)
 
 
 @click.group()
@@ -886,7 +908,52 @@ def _configure_batch_jobs(
     return final_jobs
 
 
-def _create_processing_config(
+@dataclass
+class CommandOptions:
+    """Common command line options for both main and batch commands."""
+
+    no_preprocessing: bool
+    min_duration: float
+    merge_threshold: float
+    duplicate_threshold: float
+    filter_words_file: Path | None
+    replacement_rules_file: Path | None
+    bedrock_model: str | None
+    bedrock_inference_profile_id: str | None
+    bedrock_region: str
+    prompt_template: Path | None
+    verbose: bool
+    stats: bool
+    overwrite: bool
+
+    def to_processing_config(self, delete_vtt_file: bool = False) -> ProcessingConfig:
+        """Convert CommandOptions to ProcessingConfig.
+
+        Args:
+            delete_vtt_file: Whether to delete VTT file after processing
+
+        Returns:
+            ProcessingConfig instance
+        """
+        return ProcessingConfig(
+            no_preprocessing=self.no_preprocessing,
+            min_duration=self.min_duration,
+            merge_threshold=self.merge_threshold,
+            duplicate_threshold=self.duplicate_threshold,
+            filter_words_file=self.filter_words_file,
+            replacement_rules_file=self.replacement_rules_file,
+            bedrock_model=self.bedrock_model,
+            bedrock_inference_profile_id=self.bedrock_inference_profile_id,
+            bedrock_region=self.bedrock_region,
+            prompt_template=self.prompt_template,
+            overwrite=self.overwrite,
+            verbose=self.verbose,
+            stats=self.stats,
+            delete_vtt_file=delete_vtt_file,
+        )
+
+
+def _create_command_options(
     no_preprocessing: bool,
     min_duration: float,
     merge_threshold: float,
@@ -897,12 +964,16 @@ def _create_processing_config(
     bedrock_inference_profile_id: str | None,
     bedrock_region: str,
     prompt_template: Path | None,
-    overwrite: bool,
     verbose: bool,
     stats: bool,
-) -> ProcessingConfig:
-    """Create processing configuration."""
-    return ProcessingConfig(
+    overwrite: bool,
+) -> CommandOptions:
+    """Create CommandOptions from individual parameters.
+
+    Returns:
+        CommandOptions instance with the provided values
+    """
+    return CommandOptions(
         no_preprocessing=no_preprocessing,
         min_duration=min_duration,
         merge_threshold=merge_threshold,
@@ -913,10 +984,200 @@ def _create_processing_config(
         bedrock_inference_profile_id=bedrock_inference_profile_id,
         bedrock_region=bedrock_region,
         prompt_template=prompt_template,
-        overwrite=overwrite,
         verbose=verbose,
         stats=stats,
+        overwrite=overwrite,
     )
+
+
+def _execute_single_file_workflow(
+    input_file: Path,
+    output: Path,
+    title: str | None,
+    options: CommandOptions,
+    intermediate_file: Path | None = None,
+    chat_prompt_file: Path | None = None,
+    delete_vtt_file: bool = False,
+) -> None:
+    """Execute workflow for a single file with provided options.
+
+    Args:
+        input_file: Input VTT file path
+        output: Output file path
+        title: Meeting title
+        options: Command options
+        intermediate_file: Path for intermediate file
+        chat_prompt_file: Path for chat prompt file (optional)
+        delete_vtt_file: Whether to delete VTT file after processing
+    """
+    _execute_main_workflow(
+        input_file,
+        output,
+        title,
+        options.no_preprocessing,
+        options.min_duration,
+        options.merge_threshold,
+        options.duplicate_threshold,
+        options.filter_words_file,
+        options.replacement_rules_file,
+        options.bedrock_model,
+        options.bedrock_inference_profile_id,
+        options.bedrock_region,
+        intermediate_file,
+        options.prompt_template,
+        chat_prompt_file,
+        options.verbose,
+        options.stats,
+        options.overwrite,
+        delete_vtt_file,
+    )
+
+
+def _execute_with_error_handling(
+    workflow_func: Callable[[], None],
+    verbose: bool,
+) -> None:
+    """Execute workflow function with standard error handling.
+
+    Args:
+        workflow_func: Function to execute
+        verbose: Whether to show verbose error output
+    """
+    try:
+        workflow_func()
+    except KeyboardInterrupt:
+        _handle_keyboard_interrupt()
+    except Exception as e:
+        _handle_unexpected_error(e, verbose)
+
+
+def _validate_bedrock_config_if_needed(
+    chat_prompt_requested: bool,
+    bedrock_model: str | None,
+    bedrock_inference_profile_id: str | None,
+) -> None:
+    """Validate Bedrock configuration if not using chat prompt mode.
+
+    Args:
+        chat_prompt_requested: Whether chat prompt generation was requested
+        bedrock_model: Bedrock model ID
+        bedrock_inference_profile_id: Bedrock inference profile ID
+    """
+    if not chat_prompt_requested:
+        _validate_bedrock_config(bedrock_model, bedrock_inference_profile_id)
+
+
+def _execute_main_workflow(
+    input_file: Path,
+    output: Path,
+    title: str | None,
+    no_preprocessing: bool,
+    min_duration: float,
+    merge_threshold: float,
+    duplicate_threshold: float,
+    filter_words_file: Path | None,
+    replacement_rules_file: Path | None,
+    bedrock_model: str | None,
+    bedrock_inference_profile_id: str | None,
+    bedrock_region: str,
+    intermediate_file: Path | None,
+    prompt_template: Path | None,
+    chat_prompt_file: Path | None,
+    verbose: bool,
+    stats: bool,
+    overwrite: bool,
+    delete_vtt_file: bool,
+) -> None:
+    """Execute the main processing workflow for a single file.
+
+    Args:
+        input_file: Input VTT file path
+        output: Output file path
+        title: Meeting title
+        no_preprocessing: Whether to skip preprocessing
+        min_duration: Minimum cue duration
+        merge_threshold: Threshold for merging cues
+        duplicate_threshold: Threshold for duplicate detection
+        filter_words_file: Path to filler words file
+        replacement_rules_file: Path to replacement rules file
+        bedrock_model: Bedrock model ID
+        bedrock_inference_profile_id: Bedrock inference profile ID
+        bedrock_region: AWS region for Bedrock
+        intermediate_file: Path for intermediate file
+        prompt_template: Path to prompt template
+        chat_prompt_file: Path for chat prompt file (optional)
+        verbose: Whether to show verbose output
+        stats: Whether to show statistics
+        overwrite: Whether to overwrite existing files
+        delete_vtt_file: Whether to delete VTT file after processing
+    """
+    # Display header and initialize components
+    _display_header(verbose, input_file, output)
+    parser, preprocessor = _initialize_components(
+        min_duration,
+        merge_threshold,
+        duplicate_threshold,
+        filter_words_file,
+        replacement_rules_file,
+    )
+
+    # Process with progress indication
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    ) as progress:
+        # Step 1: Parse VTT file
+        cues = _parse_vtt_file(parser, input_file, progress, verbose)
+
+        # Step 2: Preprocess (if enabled)
+        original_cues = cues.copy()
+        cues = _preprocess_cues(preprocessor, cues, no_preprocessing, progress, verbose)
+
+        # Step 3: Save intermediate file
+        intermediate_path = _save_intermediate_file(
+            cues, output, intermediate_file, title, progress, verbose, overwrite
+        )
+
+        # Step 4: Generate chat prompt file if requested (skips Bedrock)
+        if chat_prompt_file:
+            _generate_chat_prompt(
+                intermediate_path,
+                chat_prompt_file,
+                title,
+                bedrock_region,
+                prompt_template,
+                progress,
+                verbose,
+                overwrite,
+            )
+            return
+
+        # Step 5: Generate AI-powered meeting minutes using Bedrock
+        markdown_content = _generate_bedrock_minutes(
+            intermediate_path,
+            title,
+            bedrock_model,
+            bedrock_inference_profile_id,
+            bedrock_region,
+            prompt_template,
+            progress,
+            verbose,
+        )
+
+        # Step 6: Save output file
+        _save_output_file(output, markdown_content, progress, overwrite)
+
+    # Show statistics if requested
+    _display_statistics(stats, no_preprocessing, original_cues, cues, preprocessor)
+
+    # Display final summary
+    _display_final_summary(output, title, cues)
+
+    # Delete VTT file if requested and processing was successful
+    if delete_vtt_file:
+        _delete_vtt_file_with_confirmation(input_file, verbose)
 
 
 @cli.command()
@@ -1000,6 +1261,11 @@ def _create_processing_config(
     is_flag=True,
     help="Overwrite existing output files without warning",
 )
+@click.option(
+    "--delete-vtt-files",
+    is_flag=True,
+    help="Delete VTT source files after successful processing",
+)
 def batch(
     directory: Path,
     output_dir: Path | None,
@@ -1019,6 +1285,7 @@ def batch(
     verbose: bool,
     stats: bool,
     overwrite: bool,
+    delete_vtt_files: bool,
 ) -> None:
     """Process multiple VTT files in a directory interactively.
 
@@ -1035,51 +1302,82 @@ def batch(
         vtt2minutes batch ./meetings --bedrock-model \
             anthropic.claude-3-5-sonnet-20241022-v2:0
     """
-    try:
-        # Validate Bedrock configuration if not using chat prompt files
-        if not chat_prompt_files:
-            _validate_bedrock_config(bedrock_model, bedrock_inference_profile_id)
+    # Create command options
+    options = _create_command_options(
+        no_preprocessing,
+        min_duration,
+        merge_threshold,
+        duplicate_threshold,
+        filter_words_file,
+        replacement_rules_file,
+        bedrock_model,
+        bedrock_inference_profile_id,
+        bedrock_region,
+        prompt_template,
+        verbose,
+        stats,
+        overwrite,
+    )
 
-        # Setup and scan for files
-        vtt_files = _setup_batch_processing(output_dir, directory, recursive)
-
-        # Configure batch jobs
-        final_jobs = _configure_batch_jobs(vtt_files, directory, output_dir)
-        if not final_jobs:
-            return
-
-        # Create configuration and process
-        config = _create_processing_config(
-            no_preprocessing,
-            min_duration,
-            merge_threshold,
-            duplicate_threshold,
-            filter_words_file,
-            replacement_rules_file,
-            bedrock_model,
-            bedrock_inference_profile_id,
-            bedrock_region,
-            prompt_template,
-            overwrite,
-            verbose,
-            stats,
+    # Execute batch workflow with error handling
+    def workflow() -> None:
+        _execute_batch_workflow(
+            directory,
+            output_dir,
+            recursive,
+            title,
+            options,
+            chat_prompt_files,
+            delete_vtt_files,
         )
 
-        processor = BatchProcessor(config)
+    _execute_with_error_handling(workflow, verbose)
 
-        if chat_prompt_files:
-            _process_batch_for_chat_prompts(processor, final_jobs)
-        else:
-            processor.process_batch(final_jobs)
 
-    except KeyboardInterrupt:
-        console.print("\n[yellow]処理が中断されました。[/yellow]")
-        sys.exit(130)
-    except Exception as e:
-        console.print(f"\n[red]予期しないエラーが発生しました: {e}[/red]")
-        if verbose:
-            console.print_exception()
-        sys.exit(1)
+def _execute_batch_workflow(
+    directory: Path,
+    output_dir: Path | None,
+    recursive: bool,
+    title: str | None,
+    options: CommandOptions,
+    chat_prompt_files: bool,
+    delete_vtt_files: bool,
+) -> None:
+    """Execute the batch processing workflow.
+
+    Args:
+        directory: Directory to scan for VTT files
+        output_dir: Output directory for generated files
+        recursive: Whether to scan recursively
+        title: Default meeting title prefix
+        options: Command options
+        chat_prompt_files: Whether to generate chat prompt files
+        delete_vtt_files: Whether to delete VTT files after processing
+    """
+    # Validate Bedrock configuration if not using chat prompt files
+    _validate_bedrock_config_if_needed(
+        chat_prompt_files,
+        options.bedrock_model,
+        options.bedrock_inference_profile_id,
+    )
+
+    # Setup and scan for files
+    vtt_files = _setup_batch_processing(output_dir, directory, recursive)
+
+    # Configure batch jobs
+    final_jobs = _configure_batch_jobs(vtt_files, directory, output_dir)
+    if not final_jobs:
+        return
+
+    # Create configuration and process
+    config = options.to_processing_config(delete_vtt_files)
+
+    processor = BatchProcessor(config)
+
+    if chat_prompt_files:
+        _process_batch_for_chat_prompts(processor, final_jobs)
+    else:
+        processor.process_batch(final_jobs)
 
 
 def _process_batch_for_chat_prompts(
