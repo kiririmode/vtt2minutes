@@ -2,6 +2,7 @@
 
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -725,38 +726,40 @@ def main(
 
         vtt2minutes meeting.vtt --chat-prompt-file prompt.txt
     """
-    try:
-        # Determine output file path
-        if output is None:
-            output = input_file.with_suffix(".md")
+    # Create command options
+    options = _create_command_options(
+        no_preprocessing,
+        min_duration,
+        merge_threshold,
+        duplicate_threshold,
+        filter_words_file,
+        replacement_rules_file,
+        bedrock_model,
+        bedrock_inference_profile_id,
+        bedrock_region,
+        prompt_template,
+        verbose,
+        stats,
+        overwrite,
+    )
 
-        # Execute main workflow
-        _execute_main_workflow(
+    # Determine output file path
+    if output is None:
+        output = input_file.with_suffix(".md")
+
+    # Execute workflow with error handling
+    def workflow() -> None:
+        _execute_single_file_workflow(
             input_file,
             output,
             title,
-            no_preprocessing,
-            min_duration,
-            merge_threshold,
-            duplicate_threshold,
-            filter_words_file,
-            replacement_rules_file,
-            bedrock_model,
-            bedrock_inference_profile_id,
-            bedrock_region,
+            options,
             intermediate_file,
-            prompt_template,
             chat_prompt_file,
-            verbose,
-            stats,
-            overwrite,
             delete_vtt_file,
         )
 
-    except KeyboardInterrupt:
-        _handle_keyboard_interrupt()
-    except Exception as e:
-        _handle_unexpected_error(e, verbose)
+    _execute_with_error_handling(workflow, verbose)
 
 
 @click.group()
@@ -905,7 +908,52 @@ def _configure_batch_jobs(
     return final_jobs
 
 
-def _create_processing_config(
+@dataclass
+class CommandOptions:
+    """Common command line options for both main and batch commands."""
+
+    no_preprocessing: bool
+    min_duration: float
+    merge_threshold: float
+    duplicate_threshold: float
+    filter_words_file: Path | None
+    replacement_rules_file: Path | None
+    bedrock_model: str | None
+    bedrock_inference_profile_id: str | None
+    bedrock_region: str
+    prompt_template: Path | None
+    verbose: bool
+    stats: bool
+    overwrite: bool
+
+    def to_processing_config(self, delete_vtt_file: bool = False) -> ProcessingConfig:
+        """Convert CommandOptions to ProcessingConfig.
+
+        Args:
+            delete_vtt_file: Whether to delete VTT file after processing
+
+        Returns:
+            ProcessingConfig instance
+        """
+        return ProcessingConfig(
+            no_preprocessing=self.no_preprocessing,
+            min_duration=self.min_duration,
+            merge_threshold=self.merge_threshold,
+            duplicate_threshold=self.duplicate_threshold,
+            filter_words_file=self.filter_words_file,
+            replacement_rules_file=self.replacement_rules_file,
+            bedrock_model=self.bedrock_model,
+            bedrock_inference_profile_id=self.bedrock_inference_profile_id,
+            bedrock_region=self.bedrock_region,
+            prompt_template=self.prompt_template,
+            overwrite=self.overwrite,
+            verbose=self.verbose,
+            stats=self.stats,
+            delete_vtt_file=delete_vtt_file,
+        )
+
+
+def _create_command_options(
     no_preprocessing: bool,
     min_duration: float,
     merge_threshold: float,
@@ -916,13 +964,16 @@ def _create_processing_config(
     bedrock_inference_profile_id: str | None,
     bedrock_region: str,
     prompt_template: Path | None,
-    overwrite: bool,
     verbose: bool,
     stats: bool,
-    delete_vtt_file: bool = False,
-) -> ProcessingConfig:
-    """Create processing configuration."""
-    return ProcessingConfig(
+    overwrite: bool,
+) -> CommandOptions:
+    """Create CommandOptions from individual parameters.
+
+    Returns:
+        CommandOptions instance with the provided values
+    """
+    return CommandOptions(
         no_preprocessing=no_preprocessing,
         min_duration=min_duration,
         merge_threshold=merge_threshold,
@@ -933,11 +984,71 @@ def _create_processing_config(
         bedrock_inference_profile_id=bedrock_inference_profile_id,
         bedrock_region=bedrock_region,
         prompt_template=prompt_template,
-        overwrite=overwrite,
         verbose=verbose,
         stats=stats,
-        delete_vtt_file=delete_vtt_file,
+        overwrite=overwrite,
     )
+
+
+def _execute_single_file_workflow(
+    input_file: Path,
+    output: Path,
+    title: str | None,
+    options: CommandOptions,
+    intermediate_file: Path | None = None,
+    chat_prompt_file: Path | None = None,
+    delete_vtt_file: bool = False,
+) -> None:
+    """Execute workflow for a single file with provided options.
+
+    Args:
+        input_file: Input VTT file path
+        output: Output file path
+        title: Meeting title
+        options: Command options
+        intermediate_file: Path for intermediate file
+        chat_prompt_file: Path for chat prompt file (optional)
+        delete_vtt_file: Whether to delete VTT file after processing
+    """
+    _execute_main_workflow(
+        input_file,
+        output,
+        title,
+        options.no_preprocessing,
+        options.min_duration,
+        options.merge_threshold,
+        options.duplicate_threshold,
+        options.filter_words_file,
+        options.replacement_rules_file,
+        options.bedrock_model,
+        options.bedrock_inference_profile_id,
+        options.bedrock_region,
+        intermediate_file,
+        options.prompt_template,
+        chat_prompt_file,
+        options.verbose,
+        options.stats,
+        options.overwrite,
+        delete_vtt_file,
+    )
+
+
+def _execute_with_error_handling(
+    workflow_func: Callable[[], None],
+    verbose: bool,
+) -> None:
+    """Execute workflow function with standard error handling.
+
+    Args:
+        workflow_func: Function to execute
+        verbose: Whether to show verbose error output
+    """
+    try:
+        workflow_func()
+    except KeyboardInterrupt:
+        _handle_keyboard_interrupt()
+    except Exception as e:
+        _handle_unexpected_error(e, verbose)
 
 
 def _validate_bedrock_config_if_needed(
@@ -1191,49 +1302,82 @@ def batch(
         vtt2minutes batch ./meetings --bedrock-model \
             anthropic.claude-3-5-sonnet-20241022-v2:0
     """
-    try:
-        # Validate Bedrock configuration if not using chat prompt files
-        _validate_bedrock_config_if_needed(
-            chat_prompt_files, bedrock_model, bedrock_inference_profile_id
-        )
+    # Create command options
+    options = _create_command_options(
+        no_preprocessing,
+        min_duration,
+        merge_threshold,
+        duplicate_threshold,
+        filter_words_file,
+        replacement_rules_file,
+        bedrock_model,
+        bedrock_inference_profile_id,
+        bedrock_region,
+        prompt_template,
+        verbose,
+        stats,
+        overwrite,
+    )
 
-        # Setup and scan for files
-        vtt_files = _setup_batch_processing(output_dir, directory, recursive)
-
-        # Configure batch jobs
-        final_jobs = _configure_batch_jobs(vtt_files, directory, output_dir)
-        if not final_jobs:
-            return
-
-        # Create configuration and process
-        config = _create_processing_config(
-            no_preprocessing,
-            min_duration,
-            merge_threshold,
-            duplicate_threshold,
-            filter_words_file,
-            replacement_rules_file,
-            bedrock_model,
-            bedrock_inference_profile_id,
-            bedrock_region,
-            prompt_template,
-            overwrite,
-            verbose,
-            stats,
+    # Execute batch workflow with error handling
+    def workflow() -> None:
+        _execute_batch_workflow(
+            directory,
+            output_dir,
+            recursive,
+            title,
+            options,
+            chat_prompt_files,
             delete_vtt_files,
         )
 
-        processor = BatchProcessor(config)
+    _execute_with_error_handling(workflow, verbose)
 
-        if chat_prompt_files:
-            _process_batch_for_chat_prompts(processor, final_jobs)
-        else:
-            processor.process_batch(final_jobs)
 
-    except KeyboardInterrupt:
-        _handle_keyboard_interrupt()
-    except Exception as e:
-        _handle_unexpected_error(e, verbose)
+def _execute_batch_workflow(
+    directory: Path,
+    output_dir: Path | None,
+    recursive: bool,
+    title: str | None,
+    options: CommandOptions,
+    chat_prompt_files: bool,
+    delete_vtt_files: bool,
+) -> None:
+    """Execute the batch processing workflow.
+
+    Args:
+        directory: Directory to scan for VTT files
+        output_dir: Output directory for generated files
+        recursive: Whether to scan recursively
+        title: Default meeting title prefix
+        options: Command options
+        chat_prompt_files: Whether to generate chat prompt files
+        delete_vtt_files: Whether to delete VTT files after processing
+    """
+    # Validate Bedrock configuration if not using chat prompt files
+    _validate_bedrock_config_if_needed(
+        chat_prompt_files,
+        options.bedrock_model,
+        options.bedrock_inference_profile_id,
+    )
+
+    # Setup and scan for files
+    vtt_files = _setup_batch_processing(output_dir, directory, recursive)
+
+    # Configure batch jobs
+    final_jobs = _configure_batch_jobs(vtt_files, directory, output_dir)
+    if not final_jobs:
+        return
+
+    # Create configuration and process
+    config = options.to_processing_config(delete_vtt_files)
+
+    processor = BatchProcessor(config)
+
+    if chat_prompt_files:
+        _process_batch_for_chat_prompts(processor, final_jobs)
+    else:
+        processor.process_batch(final_jobs)
 
 
 def _process_batch_for_chat_prompts(
