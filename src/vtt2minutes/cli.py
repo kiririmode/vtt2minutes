@@ -556,6 +556,25 @@ def _delete_vtt_file_with_confirmation(vtt_file: Path, verbose: bool = False) ->
         console.print(f"[red]VTTファイルの削除に失敗しました: {e}[/red]")
 
 
+def _handle_keyboard_interrupt() -> None:
+    """Handle keyboard interrupt consistently."""
+    console.print("\n[yellow]処理が中断されました。[/yellow]")
+    sys.exit(130)
+
+
+def _handle_unexpected_error(error: Exception, verbose: bool = False) -> None:
+    """Handle unexpected errors consistently.
+
+    Args:
+        error: The exception that occurred
+        verbose: Whether to show detailed error information
+    """
+    console.print(f"\n[red]予期しないエラーが発生しました: {error}[/red]")
+    if verbose:
+        console.print_exception()
+    sys.exit(1)
+
+
 def _display_final_summary(output: Path, title: str | None, cues: list[VTTCue]) -> None:
     """Display final success message and summary."""
     console.print()
@@ -711,84 +730,33 @@ def main(
         if output is None:
             output = input_file.with_suffix(".md")
 
-        # Display header and initialize components
-        _display_header(verbose, input_file, output)
-        parser, preprocessor = _initialize_components(
+        # Execute main workflow
+        _execute_main_workflow(
+            input_file,
+            output,
+            title,
+            no_preprocessing,
             min_duration,
             merge_threshold,
             duplicate_threshold,
             filter_words_file,
             replacement_rules_file,
+            bedrock_model,
+            bedrock_inference_profile_id,
+            bedrock_region,
+            intermediate_file,
+            prompt_template,
+            chat_prompt_file,
+            verbose,
+            stats,
+            overwrite,
+            delete_vtt_file,
         )
 
-        # Process with progress indication
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-            transient=True,
-        ) as progress:
-            # Step 1: Parse VTT file
-            cues = _parse_vtt_file(parser, input_file, progress, verbose)
-
-            # Step 2: Preprocess (if enabled)
-            original_cues = cues.copy()
-            cues = _preprocess_cues(
-                preprocessor, cues, no_preprocessing, progress, verbose
-            )
-
-            # Step 3: Save intermediate file
-            intermediate_path = _save_intermediate_file(
-                cues, output, intermediate_file, title, progress, verbose, overwrite
-            )
-
-            # Step 4: Generate chat prompt file if requested (skips Bedrock)
-            if chat_prompt_file:
-                _generate_chat_prompt(
-                    intermediate_path,
-                    chat_prompt_file,
-                    title,
-                    bedrock_region,
-                    prompt_template,
-                    progress,
-                    verbose,
-                    overwrite,
-                )
-                return
-
-            # Step 5: Generate AI-powered meeting minutes using Bedrock
-            markdown_content = _generate_bedrock_minutes(
-                intermediate_path,
-                title,
-                bedrock_model,
-                bedrock_inference_profile_id,
-                bedrock_region,
-                prompt_template,
-                progress,
-                verbose,
-            )
-
-            # Step 6: Save output file
-            _save_output_file(output, markdown_content, progress, overwrite)
-
-        # Show statistics if requested
-        _display_statistics(stats, no_preprocessing, original_cues, cues, preprocessor)
-
-        # Display final summary
-        _display_final_summary(output, title, cues)
-
-        # Delete VTT file if requested and processing was successful
-        if delete_vtt_file:
-            _delete_vtt_file_with_confirmation(input_file, verbose)
-
     except KeyboardInterrupt:
-        console.print("\n[yellow]処理が中断されました。[/yellow]")
-        sys.exit(130)
+        _handle_keyboard_interrupt()
     except Exception as e:
-        console.print(f"\n[red]予期しないエラーが発生しました: {e}[/red]")
-        if verbose:
-            console.print_exception()
-        sys.exit(1)
+        _handle_unexpected_error(e, verbose)
 
 
 @click.group()
@@ -972,6 +940,134 @@ def _create_processing_config(
     )
 
 
+def _validate_bedrock_config_if_needed(
+    chat_prompt_requested: bool,
+    bedrock_model: str | None,
+    bedrock_inference_profile_id: str | None,
+) -> None:
+    """Validate Bedrock configuration if not using chat prompt mode.
+
+    Args:
+        chat_prompt_requested: Whether chat prompt generation was requested
+        bedrock_model: Bedrock model ID
+        bedrock_inference_profile_id: Bedrock inference profile ID
+    """
+    if not chat_prompt_requested:
+        _validate_bedrock_config(bedrock_model, bedrock_inference_profile_id)
+
+
+def _execute_main_workflow(
+    input_file: Path,
+    output: Path,
+    title: str | None,
+    no_preprocessing: bool,
+    min_duration: float,
+    merge_threshold: float,
+    duplicate_threshold: float,
+    filter_words_file: Path | None,
+    replacement_rules_file: Path | None,
+    bedrock_model: str | None,
+    bedrock_inference_profile_id: str | None,
+    bedrock_region: str,
+    intermediate_file: Path | None,
+    prompt_template: Path | None,
+    chat_prompt_file: Path | None,
+    verbose: bool,
+    stats: bool,
+    overwrite: bool,
+    delete_vtt_file: bool,
+) -> None:
+    """Execute the main processing workflow for a single file.
+
+    Args:
+        input_file: Input VTT file path
+        output: Output file path
+        title: Meeting title
+        no_preprocessing: Whether to skip preprocessing
+        min_duration: Minimum cue duration
+        merge_threshold: Threshold for merging cues
+        duplicate_threshold: Threshold for duplicate detection
+        filter_words_file: Path to filler words file
+        replacement_rules_file: Path to replacement rules file
+        bedrock_model: Bedrock model ID
+        bedrock_inference_profile_id: Bedrock inference profile ID
+        bedrock_region: AWS region for Bedrock
+        intermediate_file: Path for intermediate file
+        prompt_template: Path to prompt template
+        chat_prompt_file: Path for chat prompt file (optional)
+        verbose: Whether to show verbose output
+        stats: Whether to show statistics
+        overwrite: Whether to overwrite existing files
+        delete_vtt_file: Whether to delete VTT file after processing
+    """
+    # Display header and initialize components
+    _display_header(verbose, input_file, output)
+    parser, preprocessor = _initialize_components(
+        min_duration,
+        merge_threshold,
+        duplicate_threshold,
+        filter_words_file,
+        replacement_rules_file,
+    )
+
+    # Process with progress indication
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    ) as progress:
+        # Step 1: Parse VTT file
+        cues = _parse_vtt_file(parser, input_file, progress, verbose)
+
+        # Step 2: Preprocess (if enabled)
+        original_cues = cues.copy()
+        cues = _preprocess_cues(preprocessor, cues, no_preprocessing, progress, verbose)
+
+        # Step 3: Save intermediate file
+        intermediate_path = _save_intermediate_file(
+            cues, output, intermediate_file, title, progress, verbose, overwrite
+        )
+
+        # Step 4: Generate chat prompt file if requested (skips Bedrock)
+        if chat_prompt_file:
+            _generate_chat_prompt(
+                intermediate_path,
+                chat_prompt_file,
+                title,
+                bedrock_region,
+                prompt_template,
+                progress,
+                verbose,
+                overwrite,
+            )
+            return
+
+        # Step 5: Generate AI-powered meeting minutes using Bedrock
+        markdown_content = _generate_bedrock_minutes(
+            intermediate_path,
+            title,
+            bedrock_model,
+            bedrock_inference_profile_id,
+            bedrock_region,
+            prompt_template,
+            progress,
+            verbose,
+        )
+
+        # Step 6: Save output file
+        _save_output_file(output, markdown_content, progress, overwrite)
+
+    # Show statistics if requested
+    _display_statistics(stats, no_preprocessing, original_cues, cues, preprocessor)
+
+    # Display final summary
+    _display_final_summary(output, title, cues)
+
+    # Delete VTT file if requested and processing was successful
+    if delete_vtt_file:
+        _delete_vtt_file_with_confirmation(input_file, verbose)
+
 
 @cli.command()
 @click.argument("directory", type=click.Path(exists=True, path_type=Path))
@@ -1097,8 +1193,9 @@ def batch(
     """
     try:
         # Validate Bedrock configuration if not using chat prompt files
-        if not chat_prompt_files:
-            _validate_bedrock_config(bedrock_model, bedrock_inference_profile_id)
+        _validate_bedrock_config_if_needed(
+            chat_prompt_files, bedrock_model, bedrock_inference_profile_id
+        )
 
         # Setup and scan for files
         vtt_files = _setup_batch_processing(output_dir, directory, recursive)
@@ -1134,13 +1231,9 @@ def batch(
             processor.process_batch(final_jobs)
 
     except KeyboardInterrupt:
-        console.print("\n[yellow]処理が中断されました。[/yellow]")
-        sys.exit(130)
+        _handle_keyboard_interrupt()
     except Exception as e:
-        console.print(f"\n[red]予期しないエラーが発生しました: {e}[/red]")
-        if verbose:
-            console.print_exception()
-        sys.exit(1)
+        _handle_unexpected_error(e, verbose)
 
 
 def _process_batch_for_chat_prompts(
