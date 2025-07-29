@@ -535,8 +535,12 @@ class TestVTTFileProcessor:
             vtt_file.write_text("WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.000\nTest")
 
             # Mock unlink to raise PermissionError
-            with patch.object(Path, 'unlink', side_effect=PermissionError("Access denied")):
-                with pytest.raises(RuntimeError, match="VTTファイルの削除に失敗しました（権限エラー）"):
+            with patch.object(
+                Path, "unlink", side_effect=PermissionError("Access denied")
+            ):
+                with pytest.raises(
+                    RuntimeError, match="VTTファイルの削除に失敗しました（権限エラー）"
+                ):
                     processor._delete_vtt_file(vtt_file)
 
     def test_process_file_with_vtt_deletion_simple(self) -> None:
@@ -584,7 +588,7 @@ class TestVTTFileProcessor:
 
             assert vtt_file2.exists()
             # Deletion method should work regardless of config flag
-            # (the flag is checked in the calling code, not in the deletion method itself)
+            # (the flag is checked in calling code, not deletion method itself)
             processor_without_deletion._delete_vtt_file(vtt_file2)
             assert not vtt_file2.exists()
 
@@ -611,11 +615,12 @@ class TestVTTFileProcessor:
 
             # Create VTTCue objects
             from vtt2minutes.parser import VTTCue
+
             mock_cue = VTTCue(
                 start_time="00:00:00.000",
-                end_time="00:00:01.000", 
+                end_time="00:00:01.000",
                 text="Test",
-                speaker="Alice"
+                speaker="Alice",
             )
             mock_cues = [mock_cue]
 
@@ -635,9 +640,11 @@ class TestVTTFileProcessor:
                 "word_count": 4,
             }
             mock_writer.format_duration.return_value = "00:00:01"
+
             # Create actual intermediate file
             def mock_write_markdown(cues, path, title, metadata):
                 path.write_text("# Test\n\nAlice: Test", encoding="utf-8")
+
             mock_writer.write_markdown.side_effect = mock_write_markdown
             mock_writer_class.return_value = mock_writer
 
@@ -659,7 +666,7 @@ class TestVTTFileProcessor:
             assert chat_prompt_file.read_text() == "Generated prompt"
 
     @patch("vtt2minutes.processor.VTTParser")
-    @patch("vtt2minutes.processor.TextPreprocessor") 
+    @patch("vtt2minutes.processor.TextPreprocessor")
     @patch("vtt2minutes.processor.IntermediateTranscriptWriter")
     @patch("vtt2minutes.processor.BedrockMeetingMinutesGenerator")
     def test_process_file_bedrock_deletion_integration(
@@ -675,7 +682,7 @@ class TestVTTFileProcessor:
                 overwrite=True,
                 delete_vtt_file=True,
                 bedrock_model="anthropic.claude-3-sonnet-20241022-v2:0",
-                stats=True
+                stats=True,
             )
             processor = VTTFileProcessor(config)
 
@@ -685,11 +692,12 @@ class TestVTTFileProcessor:
 
             # Create VTTCue objects
             from vtt2minutes.parser import VTTCue
+
             mock_cue = VTTCue(
                 start_time="00:00:00.000",
                 end_time="00:00:01.000",
-                text="Test", 
-                speaker="Alice"
+                text="Test",
+                speaker="Alice",
             )
             mock_cues = [mock_cue]
 
@@ -703,7 +711,7 @@ class TestVTTFileProcessor:
             mock_preprocessor.get_statistics.return_value = {
                 "original_count": 1,
                 "processed_count": 1,
-                "removed_count": 0
+                "removed_count": 0,
             }
             mock_preprocessor_class.return_value = mock_preprocessor
 
@@ -714,14 +722,18 @@ class TestVTTFileProcessor:
                 "word_count": 4,
             }
             mock_writer.format_duration.return_value = "00:00:01"
+
             # Create actual intermediate file
             def mock_write_markdown(cues, path, title, metadata):
                 path.write_text("# Test\n\nAlice: Test", encoding="utf-8")
+
             mock_writer.write_markdown.side_effect = mock_write_markdown
             mock_writer_class.return_value = mock_writer
 
             mock_generator = Mock()
-            mock_generator.generate_minutes_from_markdown.return_value = "Generated minutes"
+            mock_generator.generate_minutes_from_markdown.return_value = (
+                "Generated minutes"
+            )
             mock_generator_class.return_value = mock_generator
 
             # Process file

@@ -171,11 +171,11 @@ class VTTFileProcessor:
                     self._generate_chat_prompt(
                         intermediate_path, chat_prompt_file, title, progress
                     )
-                    
+
                     # Delete VTT file if requested and processing was successful
                     if self.config.delete_vtt_file:
                         self._delete_vtt_file(input_file)
-                    
+
                     return ProcessingResult(
                         success=True,
                         input_file=input_file,
@@ -462,18 +462,26 @@ class VTTFileProcessor:
         """
         try:
             if self.config.verbose:
-                self.console.print(f"[yellow]VTTファイルを削除しています: {vtt_file}[/yellow]")
+                self.console.print(
+                    f"[yellow]VTTファイルを削除しています: {vtt_file}[/yellow]"
+                )
 
             vtt_file.unlink()
 
             if self.config.verbose:
-                self.console.print(f"[green]✓ VTTファイルを削除しました: {vtt_file}[/green]")
+                self.console.print(
+                    f"[green]✓ VTTファイルを削除しました: {vtt_file}[/green]"
+                )
             else:
-                self.console.print(f"[green]✓ VTTファイルを削除しました: {vtt_file.name}[/green]")
+                self.console.print(
+                    f"[green]✓ VTTファイルを削除しました: {vtt_file.name}[/green]"
+                )
 
         except FileNotFoundError:
             if self.config.verbose:
-                self.console.print(f"[yellow]VTTファイルが見つかりません: {vtt_file}[/yellow]")
+                self.console.print(
+                    f"[yellow]VTTファイルが見つかりません: {vtt_file}[/yellow]"
+                )
         except PermissionError as e:
             error_msg = f"VTTファイルの削除に失敗しました（権限エラー）: {vtt_file}"
             if self.config.verbose:

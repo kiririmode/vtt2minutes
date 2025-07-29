@@ -1980,6 +1980,7 @@ class TestBatchCommand:
                 assert result.exit_code == 130
                 assert "処理が中断されました" in result.output
 
+
 class TestCLIDeleteFeature:
     """Test cases for VTT file deletion feature."""
 
@@ -2047,7 +2048,9 @@ class TestCLIDeleteFeature:
             mock_writer_class.return_value = mock_writer_instance
 
             mock_generator = Mock()
-            mock_generator.generate_minutes_from_markdown.return_value = "Generated minutes"
+            mock_generator.generate_minutes_from_markdown.return_value = (
+                "Generated minutes"
+            )
             mock_generator_class.return_value = mock_generator
 
             runner = CliRunner()

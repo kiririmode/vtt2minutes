@@ -515,9 +515,7 @@ def _display_statistics(
     console.print(f"短縮時間: {duration_reduction:.1f}秒")
 
 
-def _delete_vtt_file_with_confirmation(
-    vtt_file: Path, verbose: bool = False
-) -> None:
+def _delete_vtt_file_with_confirmation(vtt_file: Path, verbose: bool = False) -> None:
     """Delete VTT file with user confirmation.
 
     Args:
@@ -534,7 +532,9 @@ def _delete_vtt_file_with_confirmation(
             console=console,
         ):
             if verbose:
-                console.print("[yellow]VTTファイルの削除をキャンセルしました。[/yellow]")
+                console.print(
+                    "[yellow]VTTファイルの削除をキャンセルしました。[/yellow]"
+                )
             return
 
         # Delete the file
@@ -543,13 +543,15 @@ def _delete_vtt_file_with_confirmation(
         if verbose:
             console.print(f"[green]✓ VTTファイルを削除しました: {vtt_file}[/green]")
         else:
-            console.print(f"[green]✓ VTTファイルを削除しました[/green]")
+            console.print("[green]✓ VTTファイルを削除しました[/green]")
 
     except FileNotFoundError:
         if verbose:
             console.print(f"[yellow]VTTファイルが見つかりません: {vtt_file}[/yellow]")
     except PermissionError:
-        console.print(f"[red]VTTファイルの削除に失敗しました（権限エラー）: {vtt_file}[/red]")
+        console.print(
+            f"[red]VTTファイルの削除に失敗しました（権限エラー）: {vtt_file}[/red]"
+        )
     except Exception as e:
         console.print(f"[red]VTTファイルの削除に失敗しました: {e}[/red]")
 
@@ -968,6 +970,7 @@ def _create_processing_config(
         stats=stats,
         delete_vtt_file=delete_vtt_file,
     )
+
 
 
 @cli.command()
