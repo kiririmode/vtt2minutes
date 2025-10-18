@@ -30,6 +30,10 @@ This document contains critical information about working with this codebase. Fo
      - Use `./scripts/check-similarity.sh -t 0.8 -p` for detailed analysis
      - Extract common patterns into shared utility functions
      - Review functions with >85% similarity for potential refactoring
+   - **Shell Scripts**: All shell scripts must pass ShellCheck
+     - Automatically checked via pre-commit hooks
+     - CI enforces ShellCheck compliance
+     - Fix warnings and errors before committing
 
 3. Testing Requirements
    - Framework: `uv run --frozen pytest`
@@ -71,12 +75,20 @@ Where `<name>` is the name of the user.
 ## Pre-commit Hooks
 
 - Pre-commit hooks are automatically installed and run quality checks before each commit
-- The hooks check: formatting (ruff), linting (ruff), type checking (pyright), tests (pytest), and cyclomatic complexity (lizard)
+- The hooks check: formatting (ruff), linting (ruff), type checking (pyright), tests (pytest), cyclomatic complexity (lizard), and shell scripts (shellcheck)
 - If any check fails, the commit is blocked until issues are resolved
 - To install hooks after cloning: `./scripts/setup-hooks.sh`
 - To bypass temporarily (not recommended): `git commit --no-verify`
 
 ## Python Tools
+
+## Shell Tools
+
+1. ShellCheck
+   - Check: `shellcheck scripts/*.sh`
+   - Automatically runs in pre-commit hooks
+   - CI enforces compliance
+   - Fix all warnings and errors before committing
 
 ## Code Formatting
 
