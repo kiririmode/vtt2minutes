@@ -121,6 +121,11 @@ update_version() {
     fi
 
     success "$PYPROJECT_FILE と $INIT_FILE のバージョンを更新しました"
+
+    # uv.lockを更新
+    info "uv.lock を更新中..."
+    uv lock
+    success "uv.lock を更新しました"
 }
 
 # リリースコミットとタグを作成する関数
@@ -130,8 +135,8 @@ create_release() {
 
     info "リリースコミットとタグを作成中..."
 
-    # バージョンファイルをステージング
-    git add "$PYPROJECT_FILE" "$INIT_FILE"
+    # バージョンファイルとロックファイルをステージング
+    git add "$PYPROJECT_FILE" "$INIT_FILE" uv.lock
 
     # リリースコミットを作成
     git commit -m "chore(release): prepare for ${version}"
