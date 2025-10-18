@@ -2,9 +2,7 @@
   "name": "VTT2Minutes Python Development",
   "build": {
     "dockerfile": "Dockerfile",
-    "options": [
-      "--no-cache"
-    ]
+    "options": ["--no-cache"]
   },
   "features": {
     "ghcr.io/devcontainers/features/node:1": {

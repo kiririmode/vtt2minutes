@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 env:
   # Disable color output for consistent logs
@@ -15,282 +15,282 @@ jobs:
   lint-and-format:
     name: Lint and Format Check
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-      with:
-        version: "latest"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
 
-    - name: Set up Python
-      run: uv python install 3.12
+      - name: Set up Python
+        run: uv python install 3.12
 
-    - name: Install dependencies
-      run: uv sync --extra dev
+      - name: Install dependencies
+        run: uv sync --extra dev
 
-    - name: Check code formatting with ruff
-      run: |
-        echo "::group::Ruff Format Check"
-        uv run ruff format --check .
-        echo "::endgroup::"
+      - name: Check code formatting with ruff
+        run: |
+          echo "::group::Ruff Format Check"
+          uv run ruff format --check .
+          echo "::endgroup::"
 
-    - name: Lint with ruff
-      run: |
-        echo "::group::Ruff Lint Check"
-        uv run ruff check .
-        echo "::endgroup::"
+      - name: Lint with ruff
+        run: |
+          echo "::group::Ruff Lint Check"
+          uv run ruff check .
+          echo "::endgroup::"
 
-    - name: Check cyclomatic complexity
-      run: |
-        echo "::group::Cyclomatic Complexity Check"
-        # Check for functions with high complexity (CCN > 10)
-        if uv run lizard src/vtt2minutes --CCN 10; then
-          echo "✅ All functions have CCN ≤ 10"
-        else
-          echo "❌ Functions with CCN > 10 found. Please refactor complex functions."
-          echo "Run 'uv run lizard src/vtt2minutes --CCN 10' locally for details."
-          exit 1
-        fi
-        echo "::endgroup::"
+      - name: Check cyclomatic complexity
+        run: |
+          echo "::group::Cyclomatic Complexity Check"
+          # Check for functions with high complexity (CCN > 10)
+          if uv run lizard src/vtt2minutes --CCN 10; then
+            echo "✅ All functions have CCN ≤ 10"
+          else
+            echo "❌ Functions with CCN > 10 found. Please refactor complex functions."
+            echo "Run 'uv run lizard src/vtt2minutes --CCN 10' locally for details."
+            exit 1
+          fi
+          echo "::endgroup::"
 
   type-check:
     name: Type Check
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-      with:
-        version: "latest"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
 
-    - name: Set up Python
-      run: uv python install 3.12
+      - name: Set up Python
+        run: uv python install 3.12
 
-    - name: Install dependencies
-      run: uv sync --extra dev
+      - name: Install dependencies
+        run: uv sync --extra dev
 
-    - name: Type check with pyright
-      run: |
-        echo "::group::Pyright Type Check"
-        uv run pyright
-        echo "::endgroup::"
+      - name: Type check with pyright
+        run: |
+          echo "::group::Pyright Type Check"
+          uv run pyright
+          echo "::endgroup::"
 
   test:
     name: Test Suite
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.12']
+        python-version: ["3.12"]
       fail-fast: false
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-      with:
-        version: "latest"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
 
-    - name: Set up Python ${{ matrix.python-version }}
-      run: uv python install ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
 
-    - name: Install dependencies
-      run: uv sync --extra dev
+      - name: Install dependencies
+        run: uv sync --extra dev
 
-    - name: Run tests with coverage
-      run: |
-        echo "::group::Test Execution"
-        # Disable pytest plugin autoload to avoid anyio issues if they occur
-        PYTEST_DISABLE_PLUGIN_AUTOLOAD="" uv run pytest --tb=short --cov=src/vtt2minutes --cov-report=xml --cov-report=html
-        echo "::endgroup::"
+      - name: Run tests with coverage
+        run: |
+          echo "::group::Test Execution"
+          # Disable pytest plugin autoload to avoid anyio issues if they occur
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD="" uv run pytest --tb=short --cov=src/vtt2minutes --cov-report=xml --cov-report=html
+          echo "::endgroup::"
 
-    - name: Upload coverage reports to Codecov
-      if: matrix.python-version == '3.12'
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
-      env:
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload coverage reports to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-    - name: Upload coverage artifacts
-      if: matrix.python-version == '3.12'
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-report-${{ github.sha }}
-        path: |
-          coverage.xml
-          htmlcov/
-        retention-days: 30
+      - name: Upload coverage artifacts
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ github.sha }}
+          path: |
+            coverage.xml
+            htmlcov/
+          retention-days: 30
 
   integration-test:
     name: Integration Test
     runs-on: ubuntu-latest
     needs: [lint-and-format, type-check, test]
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-      with:
-        version: "latest"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
 
-    - name: Set up Python
-      run: uv python install 3.12
+      - name: Set up Python
+        run: uv python install 3.12
 
-    - name: Install dependencies
-      run: uv sync --extra dev
+      - name: Install dependencies
+        run: uv sync --extra dev
 
-    - name: Test CLI installation and basic functionality
-      run: |
-        echo "::group::CLI Installation Test"
-        # Install the package in development mode
-        uv pip install -e .
-        
-        # Test help command
-        echo "Testing help command..."
-        uv run vtt2minutes --help
-        
-        echo "::endgroup::"
+      - name: Test CLI installation and basic functionality
+        run: |
+          echo "::group::CLI Installation Test"
+          # Install the package in development mode
+          uv pip install -e .
 
-    - name: Test preprocessing functionality
-      run: |
-        echo "::group::Preprocessing Test"
-        # Test preprocessing with custom options (no Bedrock required)
-        echo "Testing preprocessing with stats..."
-        uv run vtt2minutes tests/sample.vtt \
-          --no-preprocessing \
-          --stats \
-          --intermediate-file /tmp/test_intermediate.md \
-          --output /tmp/test_output.md || echo "Expected to fail without Bedrock config"
-        
-        # Verify intermediate file was created during preprocessing attempt
-        if [ -f "/tmp/test_intermediate.md" ]; then
-          echo "✓ Intermediate file created successfully"
-          head -10 /tmp/test_intermediate.md
-        fi
-        echo "::endgroup::"
+          # Test help command
+          echo "Testing help command..."
+          uv run vtt2minutes --help
 
-    - name: Test word replacement functionality
-      run: |
-        echo "::group::Word Replacement Test"
-        # Test with replacement rules file
-        echo "Testing replacement rules..."
-        uv run python -c "
-        from vtt2minutes.preprocessor import PreprocessingConfig, TextPreprocessor
-        config = PreprocessingConfig(replacement_rules_file='replacement_rules.txt')
-        preprocessor = TextPreprocessor(config)
-        test_text = 'ベッドロックとエス3について'
-        result = preprocessor._apply_word_replacement(test_text)
-        print(f'Original: {test_text}')
-        print(f'Replaced: {result}')
-        assert 'Bedrock' in result and 'S3' in result, 'Replacement failed'
-        print('✓ Word replacement working correctly')
-        "
-        echo "::endgroup::"
+          echo "::endgroup::"
+
+      - name: Test preprocessing functionality
+        run: |
+          echo "::group::Preprocessing Test"
+          # Test preprocessing with custom options (no Bedrock required)
+          echo "Testing preprocessing with stats..."
+          uv run vtt2minutes tests/sample.vtt \
+            --no-preprocessing \
+            --stats \
+            --intermediate-file /tmp/test_intermediate.md \
+            --output /tmp/test_output.md || echo "Expected to fail without Bedrock config"
+
+          # Verify intermediate file was created during preprocessing attempt
+          if [ -f "/tmp/test_intermediate.md" ]; then
+            echo "✓ Intermediate file created successfully"
+            head -10 /tmp/test_intermediate.md
+          fi
+          echo "::endgroup::"
+
+      - name: Test word replacement functionality
+        run: |
+          echo "::group::Word Replacement Test"
+          # Test with replacement rules file
+          echo "Testing replacement rules..."
+          uv run python -c "
+          from vtt2minutes.preprocessor import PreprocessingConfig, TextPreprocessor
+          config = PreprocessingConfig(replacement_rules_file='replacement_rules.txt')
+          preprocessor = TextPreprocessor(config)
+          test_text = 'ベッドロックとエス3について'
+          result = preprocessor._apply_word_replacement(test_text)
+          print(f'Original: {test_text}')
+          print(f'Replaced: {result}')
+          assert 'Bedrock' in result and 'S3' in result, 'Replacement failed'
+          print('✓ Word replacement working correctly')
+          "
+          echo "::endgroup::"
 
   security-check:
     name: Security Check
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-      with:
-        version: "latest"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
 
-    - name: Set up Python
-      run: uv python install 3.12
+      - name: Set up Python
+        run: uv python install 3.12
 
-    - name: Install dependencies
-      run: uv sync --extra dev
+      - name: Install dependencies
+        run: uv sync --extra dev
 
-    - name: Check for security vulnerabilities
-      run: |
-        echo "::group::Security Audit"
-        # Check for known vulnerabilities in dependencies
-        uv run pip-audit --desc || echo "pip-audit not available, skipping security check"
-        echo "::endgroup::"
-      continue-on-error: true
+      - name: Check for security vulnerabilities
+        run: |
+          echo "::group::Security Audit"
+          # Check for known vulnerabilities in dependencies
+          uv run pip-audit --desc || echo "pip-audit not available, skipping security check"
+          echo "::endgroup::"
+        continue-on-error: true
 
   build-check:
     name: Build Check
     runs-on: ubuntu-latest
     needs: [lint-and-format, type-check, test]
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-      with:
-        version: "latest"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
 
-    - name: Set up Python
-      run: uv python install 3.12
+      - name: Set up Python
+        run: uv python install 3.12
 
-    - name: Install dependencies
-      run: uv sync --extra dev
+      - name: Install dependencies
+        run: uv sync --extra dev
 
-    - name: Build package
-      run: |
-        echo "::group::Package Build"
-        uv build
-        echo "::endgroup::"
+      - name: Build package
+        run: |
+          echo "::group::Package Build"
+          uv build
+          echo "::endgroup::"
 
-    - name: Check package contents
-      run: |
-        echo "::group::Package Contents"
-        ls -la dist/
-        # Verify both wheel and source dist were created
-        [ -f dist/*.whl ] && echo "✓ Wheel package created"
-        [ -f dist/*.tar.gz ] && echo "✓ Source distribution created"
-        echo "::endgroup::"
+      - name: Check package contents
+        run: |
+          echo "::group::Package Contents"
+          ls -la dist/
+          # Verify both wheel and source dist were created
+          [ -f dist/*.whl ] && echo "✓ Wheel package created"
+          [ -f dist/*.tar.gz ] && echo "✓ Source distribution created"
+          echo "::endgroup::"
 
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: dist-packages
-        path: dist/
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-packages
+          path: dist/
 
   all-checks:
     name: All Checks Complete
     runs-on: ubuntu-latest
     needs: [lint-and-format, type-check, test, integration-test, build-check]
     if: always()
-    
+
     steps:
-    - name: Check all jobs status
-      run: |
-        echo "Lint and Format: ${{ needs.lint-and-format.result }}"
-        echo "Type Check: ${{ needs.type-check.result }}"
-        echo "Test: ${{ needs.test.result }}"
-        echo "Integration Test: ${{ needs.integration-test.result }}"
-        echo "Build Check: ${{ needs.build-check.result }}"
-        
-        if [[ "${{ needs.lint-and-format.result }}" == "success" && 
-              "${{ needs.type-check.result }}" == "success" && 
-              "${{ needs.test.result }}" == "success" && 
-              "${{ needs.integration-test.result }}" == "success" && 
-              "${{ needs.build-check.result }}" == "success" ]]; then
-          echo "✅ All checks passed!"
-          exit 0
-        else
-          echo "❌ Some checks failed"
-          exit 1
-        fi
+      - name: Check all jobs status
+        run: |
+          echo "Lint and Format: ${{ needs.lint-and-format.result }}"
+          echo "Type Check: ${{ needs.type-check.result }}"
+          echo "Test: ${{ needs.test.result }}"
+          echo "Integration Test: ${{ needs.integration-test.result }}"
+          echo "Build Check: ${{ needs.build-check.result }}"
+
+          if [[ "${{ needs.lint-and-format.result }}" == "success" && 
+                "${{ needs.type-check.result }}" == "success" && 
+                "${{ needs.test.result }}" == "success" && 
+                "${{ needs.integration-test.result }}" == "success" && 
+                "${{ needs.build-check.result }}" == "success" ]]; then
+            echo "✅ All checks passed!"
+            exit 0
+          else
+            echo "❌ Some checks failed"
+            exit 1
+          fi

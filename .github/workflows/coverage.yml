@@ -2,7 +2,7 @@ name: Coverage Report
 
 on:
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 env:
   FORCE_COLOR: 0
@@ -17,31 +17,31 @@ jobs:
       pull-requests: write
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
-      with:
-        version: "latest"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
 
-    - name: Set up Python
-      run: uv python install 3.12
+      - name: Set up Python
+        run: uv python install 3.12
 
-    - name: Install dependencies
-      run: uv sync --extra dev
+      - name: Install dependencies
+        run: uv sync --extra dev
 
-    - name: Run tests with coverage
-      run: |
-        echo "::group::Test Execution with Coverage"
-        uv run pytest --cov=src/vtt2minutes --cov-report=xml --cov-report=html --cov-report=term --cov-branch
-        echo "::endgroup::"
+      - name: Run tests with coverage
+        run: |
+          echo "::group::Test Execution with Coverage"
+          uv run pytest --cov=src/vtt2minutes --cov-report=xml --cov-report=html --cov-report=term --cov-branch
+          echo "::endgroup::"
 
-    - name: Coverage Report as PR Comment
-      uses: orgoro/coverage@v3.1
-      with:
-        coverageFile: coverage.xml
-        token: ${{ secrets.GITHUB_TOKEN }}
-        thresholdAll: 0.85
-        thresholdNew: 0.85
-        thresholdModified: 0.85
+      - name: Coverage Report as PR Comment
+        uses: orgoro/coverage@v3.1
+        with:
+          coverageFile: coverage.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          thresholdAll: 0.85
+          thresholdNew: 0.85
+          thresholdModified: 0.85

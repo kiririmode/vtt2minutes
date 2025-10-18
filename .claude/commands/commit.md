@@ -15,7 +15,6 @@ description: Create a git commit
 
 2. **変更の分類と Conventional Commits タイプの決定**
    変更を以下のような論理的な単位に分類し、適切な Conventional Commits タイプを選択してください:
-
    - **feat**: 機能追加（新しい機能の実装）
    - **fix**: バグ修正（既存機能の不具合修正）
    - **refactor**: リファクタリング（動作を変えずにコードを改善）
@@ -40,6 +39,7 @@ description: Create a git commit
    ```
 
    **形式の例:**
+
    ```
    feat: バッチ処理機能を追加
 
@@ -70,6 +70,7 @@ description: Create a git commit
    c. `git status` でコミット成功を確認
 
    コミット実行例:
+
    ```bash
    git add file1.py file2.py
    git commit -m "$(cat <<'EOF'

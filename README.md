@@ -21,6 +21,7 @@ Microsoft Teams の VTT 形式議事録ファイルから、Amazon Bedrock を�
 [リリースページ](https://github.com/kiririmode/vtt2minutes/releases) から事前ビルド済みバイナリをダウンロード：
 
 **Linux (x86_64):**
+
 ```bash
 # ダウンロードと展開
 wget https://github.com/kiririmode/vtt2minutes/releases/latest/download/vtt2minutes-linux-x86_64.tar.gz
@@ -31,6 +32,7 @@ tar -xzf vtt2minutes-linux-x86_64.tar.gz
 ```
 
 **Windows (x86_64):**
+
 1. リリースから `vtt2minutes-windows-x86_64.zip` をダウンロード
 2. zip ファイルを展開
 3. コマンドプロンプトまたは PowerShell で `vtt2minutes.exe --help` を実行
@@ -38,12 +40,14 @@ tar -xzf vtt2minutes-linux-x86_64.tar.gz
 ### オプション 2: Python インストール
 
 **要件:**
+
 - Python 3.12 以上
 - uv（推奨パッケージマネージャー）
 - Amazon Bedrock アクセス権限を持つ AWS アカウント
 - 設定済み AWS 認証情報
 
 **セットアップ:**
+
 ```bash
 # リポジトリのクローン
 git clone https://github.com/kiririmode/vtt2minutes.git
@@ -64,17 +68,14 @@ AWS IAM ユーザーまたはロールに以下の権限が必要です：
 
 ```json
 {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "bedrock:InvokeModel",
-                "bedrock:ListFoundationModels"
-            ],
-            "Resource": "*"
-        }
-    ]
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["bedrock:InvokeModel", "bedrock:ListFoundationModels"],
+      "Resource": "*"
+    }
+  ]
 }
 ```
 
@@ -128,6 +129,7 @@ vtt2minutes info meeting.vtt
 ```
 
 この機能により以下の情報を確認できます：
+
 - **キュー数**: 発言の総数
 - **参加者数**: 会議参加者の人数
 - **総時間**: 会議の長さ（秒・分）
@@ -173,6 +175,7 @@ vtt2minutes meeting.vtt --intermediate-file processed.md --chat-prompt-file prom
 ```
 
 このオプションは以下のファイルの上書きを許可します：
+
 - **出力ファイル**: 生成される議事録ファイル（`.md`）
 - **中間ファイル**: 前処理済みトランスクリプトファイル（`--intermediate-file`）
 - **プロンプトファイル**: ChatGPT用プロンプトファイル（`--chat-prompt-file`）
@@ -192,6 +195,7 @@ cat chatgpt_prompt.txt
 ```
 
 この機能により：
+
 - **AWS認証不要**: Amazon Bedrockの設定が不要
 - **柔軟なAI選択**: ChatGPT、Claude、Geminiなど好みのAIサービスを選択可能
 - **簡単操作**: 生成されたプロンプトをコピー&ペーストするだけ
@@ -219,6 +223,7 @@ vtt2minutes batch ./meetings --chat-prompt-files
 ```
 
 **バッチ処理の特徴：**
+
 - **対話式設定**: 各ファイルごとにタイトルと出力パスを個別設定可能
 - **一括処理**: 設定後はすべてのファイルを自動処理
 - **柔軟な出力**: 議事録またはチャットプロンプトファイルの選択
@@ -254,10 +259,12 @@ DB -> データベース
 デフォルトで除去される日本語フィラーワード：
 
 #### 日本語
+
 - えー, あー, うー, そのー, なんか, まあ, ちょっと
 - えっと, あのー, そうですね, はい, ええ, うん
 
 #### 転写アーティファクト
+
 - [音声が途切れました], [雑音], [不明瞭], [咳], [笑い]
 
 ## カスタムフィラーワードファイル
@@ -324,6 +331,7 @@ vtt2minutes meeting.vtt --bedrock-region ap-northeast-1 --bedrock-inference-prof
 ```
 
 **推論プロファイルの利点:**
+
 - **コスト最適化**: リージョン間でのコスト効率的なルーティング
 - **可用性向上**: 複数リージョンでの冗長性確保
 - **レイテンシー改善**: 最適なリージョンへの自動ルーティング
@@ -363,6 +371,7 @@ vtt2minutes meeting.vtt --bedrock-region ap-northeast-1 --bedrock-inference-prof
 ```
 
 プレースホルダー:
+
 - `{title}`: 会議タイトル
 - `{markdown_content}`: 前処理済みトランスクリプト内容
 
@@ -374,36 +383,44 @@ vtt2minutes meeting.vtt --bedrock-region ap-northeast-1 --bedrock-inference-prof
 # プロジェクト企画会議
 
 ## 会議概要
+
 - 日時: 2024年1月15日
 - 参加者: 田中氏、佐藤氏、山田氏
 - 目的: 新プロジェクトの企画検討
 
 ## 主要な議題
+
 1. プロジェクトスコープの定義
 2. リソース配分の検討
 3. スケジュール策定
 
 ## 決定事項
+
 - プロジェクト開始日を2024年2月1日に決定
 - 初期予算として500万円を承認
 - チームリーダーに田中氏を任命
 
 ## アクションアイテム
+
 - [ ] 詳細な要件定義書の作成（田中氏、1月31日まで）
 - [ ] 開発チームの採用活動開始（佐藤氏、1月25日まで）
 - [ ] プロジェクト管理ツールの選定（山田氏、1月20日まで）
 
 ## 次回までの課題
+
 - 技術スタックの最終決定
 - 外部パートナーとの契約締結
 - プロジェクト管理体制の構築
 
 ## 詳細な議論内容
+
 ### プロジェクトスコープについて
+
 田中氏より、プロジェクトの目標と範囲について詳細な説明がありました。
 特に、ユーザビリティと拡張性を重視する方針が確認されました。
 
 ### リソース配分について
+
 佐藤氏から人員配置の提案があり、全員で検討した結果、
 フロントエンド2名、バックエンド3名の体制で進めることになりました。
 ```
@@ -445,6 +462,7 @@ uv run pytest tests/test_parser.py
 - テスト（pytest）
 
 一時的にバイパスするには（推奨しません）：
+
 ```bash
 git commit --no-verify
 ```
@@ -465,27 +483,35 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD="" uv run pytest  # プラグインエラー回�
 ### よくある問題
 
 **1. AWS 認証エラー**
+
 ```
 Error: Unable to locate credentials
 ```
+
 → AWS 認証情報が正しく設定されているか確認してください
 
 **2. Bedrock モデルアクセスエラー**
+
 ```
 Error: Model access denied
 ```
+
 → AWS コンソールで Bedrock モデルへのアクセス許可を確認してください
 
 **3. VTT ファイル解析エラー**
+
 ```
 Error: Invalid VTT format
 ```
+
 → VTT ファイルが Microsoft Teams の正しい形式かどうか確認してください
 
 **4. プロンプトテンプレートエラー**
+
 ```
 Error: Failed to read prompt template file
 ```
+
 → テンプレートファイルのパスと権限を確認してください
 
 ### パフォーマンスの最適化

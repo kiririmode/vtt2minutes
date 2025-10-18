@@ -40,13 +40,15 @@ This document contains critical information about working with this codebase. Fo
    - **Coverage Standards**: Each source file must maintain at least 85% test coverage
      - Check with: `uv run --frozen pytest --cov=src --cov-report=term-missing`
      - Files below 85% coverage will block commits
-     - Exclude only justifiable cases (e.g., __main__.py, error handling paths)
+     - Exclude only justifiable cases (e.g., **main**.py, error handling paths)
 
 - For commits fixing bugs or adding features based on user reports add:
+
 ```bash
   git commit --trailer "Reported-by:<name>"
-  ```
-  Where `<name>` is the name of the user.
+```
+
+Where `<name>` is the name of the user.
 
 - For commits related to a Github issue, add
   ```bash
