@@ -99,7 +99,7 @@ fi
 # Clean build artifacts if requested
 if [[ "$CLEAN" == "true" ]]; then
     print_info "Cleaning build artifacts..."
-    rm -rf build dist __pycache__ *.spec.bak
+    rm -rf build dist __pycache__ -- *.spec.bak
     find . -name "*.pyc" -delete 2>/dev/null || true
     find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
     print_status "Cleaned build artifacts"
