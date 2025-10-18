@@ -643,6 +643,42 @@ class TestInteractiveFunctions:
             )
             assert result == base_dir / "custom" / "output.md"
 
+    @patch("vtt2minutes.batch.Prompt.ask")
+    def test_prompt_for_output_path_filename_only(self, mock_prompt) -> None:
+        """Test prompting for output path with filename only input."""
+        with TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            subdir = base_dir / "output"
+            subdir.mkdir()
+            default_output = subdir / "default.md"
+            default_rel = Path("output/default.md")
+
+            mock_prompt.return_value = "custom.md"
+            console = Console()
+
+            result = _prompt_for_output_path(
+                default_output, default_rel, base_dir, console
+            )
+            # Should use default directory but change filename
+            assert result == subdir / "custom.md"
+
+    @patch("vtt2minutes.batch.Prompt.ask")
+    def test_prompt_for_output_path_absolute(self, mock_prompt) -> None:
+        """Test prompting for output path with absolute path input."""
+        with TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            default_output = base_dir / "default.md"
+            default_rel = Path("default.md")
+            absolute_path = Path("/absolute/path/custom.md")
+
+            mock_prompt.return_value = str(absolute_path)
+            console = Console()
+
+            result = _prompt_for_output_path(
+                default_output, default_rel, base_dir, console
+            )
+            assert result == absolute_path
+
     @patch("vtt2minutes.batch.Confirm.ask")
     def test_prompt_for_processing_confirmation_yes(self, mock_confirm) -> None:
         """Test processing confirmation returning True."""
@@ -716,8 +752,6 @@ class TestInteractiveJobConfiguration:
             vtt_file = base_dir / "meeting.vtt"
             vtt_file.touch()
 
-            mock_title.return_value = "Test Meeting"
-            mock_output.return_value = base_dir / "test_output.md"
             mock_process.return_value = False  # Skip this file
 
             console = Console()
@@ -726,6 +760,9 @@ class TestInteractiveJobConfiguration:
             )
 
             assert len(result) == 0
+            # Title and output path should not be prompted when skipping
+            mock_title.assert_not_called()
+            mock_output.assert_not_called()
 
 
 class TestReviewAndConfirmJobs:

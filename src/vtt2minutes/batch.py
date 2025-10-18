@@ -407,14 +407,14 @@ def interactive_job_configuration(
         except ValueError:
             default_output_rel = default_output
 
-        # Interactive input
-        title = _prompt_for_title(default_title, console)
-        output_file = _prompt_for_output_path(
-            default_output, default_output_rel, base_directory, console
-        )
+        # Interactive input - First check if user wants to process this file
         process_file = _prompt_for_processing_confirmation(console)
 
         if process_file:
+            title = _prompt_for_title(default_title, console)
+            output_file = _prompt_for_output_path(
+                default_output, default_output_rel, base_directory, console
+            )
             job = BatchJob(
                 vtt_file=vtt_file, title=title, output_file=output_file, enabled=True
             )
@@ -461,6 +461,11 @@ def _prompt_for_output_path(
 ) -> Path:
     """Prompt user for output file path with default value.
 
+    Supports three input modes:
+    - Filename only (e.g., "custom.md"): Uses default directory
+    - Relative path (e.g., "output/custom.md"): Resolves from base directory
+    - Absolute path (e.g., "/abs/path/custom.md"): Uses as-is
+
     Args:
         default_output: Default output path (absolute)
         default_output_rel: Default output path (relative to base)
@@ -472,20 +477,31 @@ def _prompt_for_output_path(
     """
     try:
         output_str = Prompt.ask(
-            f"[yellow]出力先[/yellow] [dim]\\[{default_output_rel}][/dim]",
-            default=str(default_output_rel),
+            (
+                f"[yellow]出力先[/yellow] [dim]\\[{default_output_rel.name}][/dim]\n"
+                f"  [dim]※ファイル名のみ、相対パス、絶対パスいずれも指定可能[/dim]"
+            ),
+            default=str(default_output_rel.name),
             console=console,
         ).strip()
 
         if not output_str:
             return default_output
 
-        # Convert to Path and handle relative paths
+        # Convert to Path
         output_path = Path(output_str)
-        if not output_path.is_absolute():
-            output_path = base_directory / output_path
 
-        return output_path
+        # Absolute path - use as-is
+        if output_path.is_absolute():
+            return output_path
+
+        # Filename only (no directory separators) - use default directory
+        if "/" not in output_str and "\\" not in output_str:
+            return default_output.parent / output_str
+
+        # Relative path - resolve from base directory
+        return base_directory / output_path
+
     except (KeyboardInterrupt, EOFError):
         console.print("[yellow]\\n中断されました。デフォルト値を使用します。[/yellow]")
         return default_output
