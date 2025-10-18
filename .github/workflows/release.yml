@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  FORCE_COLOR: 0
+  NO_COLOR: 1
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  release:
+    name: リリース作成
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: コードをチェックアウト
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 変更履歴生成のため全履歴を取得
+
+      - name: uvをインストール
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Pythonをセットアップ
+        run: uv python install 3.12
+
+      - name: 依存関係をインストール
+        run: uv sync --extra dev
+
+      - name: タグからバージョンを抽出
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Version: ${VERSION}"
+
+      - name: git-cliffをインストール
+        run: |
+          curl -sSL https://github.com/orhun/git-cliff/releases/download/v2.8.1/git-cliff-2.8.1-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          sudo mv git-cliff-*/git-cliff /usr/local/bin/
+          git-cliff --version
+
+      - name: 変更履歴を生成
+        id: changelog
+        run: |
+          # 現在のタグの変更履歴を生成
+          CHANGELOG=$(git-cliff --current --strip header)
+
+          # リリースノート用にファイルに保存
+          echo "$CHANGELOG" > RELEASE_NOTES.md
+
+          # デバッグ用に出力
+          echo "Generated changelog:"
+          cat RELEASE_NOTES.md
+
+      - name: テストを実行
+        run: |
+          echo "::group::Test Execution"
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD="" uv run --frozen pytest --tb=short
+          echo "::endgroup::"
+
+      - name: パッケージをビルド
+        run: |
+          echo "::group::Building Package"
+          uv build
+          echo "::endgroup::"
+
+      - name: パッケージ内容を確認
+        run: |
+          echo "::group::Package Verification"
+          ls -lh dist/
+
+          # ビルドされたパッケージのバージョンを確認
+          WHEEL_FILE=$(find dist -name "*.whl" -type f)
+          if [[ -n "$WHEEL_FILE" ]]; then
+            echo "Found wheel: $WHEEL_FILE"
+            unzip -l "$WHEEL_FILE" | grep -E '(vtt2minutes|__init__.py)' || true
+          fi
+
+          TAR_FILE=$(find dist -name "*.tar.gz" -type f)
+          if [[ -n "$TAR_FILE" ]]; then
+            echo "Found source distribution: $TAR_FILE"
+          fi
+          echo "::endgroup::"
+
+      - name: GitHubリリースを作成
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release v${{ steps.version.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ビルド成果物をアップロード
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts-${{ steps.version.outputs.version }}
+          path: dist/
+          retention-days: 90

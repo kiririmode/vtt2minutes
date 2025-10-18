@@ -452,6 +452,88 @@ uv run pytest --cov   # カバレッジ付き
 uv run pytest tests/test_parser.py
 ```
 
+### リリース
+
+このプロジェクトは Conventional Commits に基づいた半自動リリースワークフローを採用しています。
+
+#### リリース手順
+
+1. **リリーススクリプトの実行**
+
+   ```bash
+   ./scripts/release.sh
+   ```
+
+2. **バージョンの確認・調整**
+
+   スクリプトは Conventional Commits の履歴を解析し、次のバージョンを提案します：
+   - `feat:` コミット → マイナーバージョンアップ (例: 1.0.0 → 1.1.0)
+   - `fix:` コミット → パッチバージョンアップ (例: 1.0.0 → 1.0.1)
+   - `BREAKING CHANGE` → メジャーバージョンアップ (例: 1.0.0 → 2.0.0)
+
+   提案されたバージョンを確認し、必要に応じて調整できます。
+
+3. **自動化された処理**
+
+   確認後、以下が自動的に実行されます：
+   - `pyproject.toml` と `src/vtt2minutes/__init__.py` のバージョン更新
+   - リリースコミットの作成
+   - バージョンタグの作成 (例: `v1.1.0`)
+   - GitHub へのプッシュ
+
+4. **GitHub Actions によるリリース**
+
+   タグがプッシュされると、GitHub Actions が自動的に：
+   - Conventional Commits からリリースノートを生成
+   - テストの実行
+   - パッケージのビルド
+   - GitHub Release の作成
+   - ビルド成果物のアップロード
+
+#### リリースノートの内容
+
+自動生成されるリリースノートには以下が含まれます：
+
+- **Features**: 新機能 (`feat:` コミット)
+- **Bug Fixes**: バグ修正 (`fix:` コミット)
+- **Breaking Changes**: 破壊的変更 (`BREAKING CHANGE`)
+- **その他**: ドキュメント、リファクタリング、CI/CD など
+- **Issue/PR リンク**: 関連する GitHub Issue や Pull Request へのリンク
+
+#### Conventional Commits の書き方
+
+コミットメッセージは以下の形式に従ってください：
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+例：
+
+```bash
+# 新機能
+git commit -m "feat: Add batch processing support for multiple VTT files"
+
+# バグ修正
+git commit -m "fix: Correct timestamp parsing in VTT parser"
+
+# 破壊的変更
+git commit -m "feat!: Change CLI argument structure
+
+BREAKING CHANGE: The --model flag has been renamed to --bedrock-model"
+
+# Issue参照
+git commit -m "fix: Handle empty VTT files gracefully" --trailer "Github-Issue:#42"
+```
+
+#### 手動でのリリースノート編集
+
+必要に応じて、GitHub のリリースページから手動でリリースノートを編集できます。
+
 ### プリコミットフック
 
 品質チェックのためのプリコミットフックが自動的にインストールされ、コミット前に以下をチェック：
