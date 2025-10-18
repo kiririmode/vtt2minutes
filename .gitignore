@@ -208,3 +208,5 @@ __marimo__/
 
 tests/*.vtt
 tests/*.md
+.claude/settings.local.json
+.testmondata

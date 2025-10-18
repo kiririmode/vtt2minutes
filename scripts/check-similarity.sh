@@ -74,11 +74,13 @@ done
 
 # Check if similarity-py is installed
 if ! command -v similarity-py &> /dev/null; then
-    print_error "similarity-py is not installed"
+    print_warning "similarity-py is not installed - skipping similarity check"
     echo ""
-    echo "To install similarity-py:"
+    echo "To install similarity-py (optional):"
     echo "  cargo install similarity-py"
-    exit 1
+    echo ""
+    echo "This check is optional and can be skipped in pre-commit."
+    exit 0
 fi
 
 # Ensure we're in the project root

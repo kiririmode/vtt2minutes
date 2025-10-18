@@ -1,0 +1,68 @@
+# VTT2Minutes Pre-commit Configuration
+# Automatically runs quality checks before each commit
+# Install: ./scripts/setup-hooks.sh or pre-commit install
+
+default_language_version:
+  python: python3.12
+
+repos:
+  # Prettier - Format YAML, JSON, Markdown
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        types_or: [yaml, json, markdown]
+
+  # Ruff - Fast Python linter and formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      # Format Python code
+      - id: ruff-format
+        files: \.py$
+
+      # Lint Python code
+      - id: ruff
+        files: \.py$
+        args: [--fix]
+
+  # Pyright - Static type checker
+  - repo: local
+    hooks:
+      - id: pyright
+        name: pyright
+        entry: bash -c 'uv run --frozen pyright'
+        language: system
+        files: \.py$
+        pass_filenames: false
+
+  # Pytest - Run tests on changed Python files
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: bash -c 'PYTEST_DISABLE_PLUGIN_AUTOLOAD="" uv run --frozen pytest --testmon --no-cov --tb=short --quiet'
+        language: system
+        files: \.py$
+        pass_filenames: false
+        always_run: false
+
+  # Lizard - Cyclomatic complexity check
+  - repo: local
+    hooks:
+      - id: lizard
+        name: lizard complexity check
+        entry: bash -c 'uv run --frozen lizard src/vtt2minutes tests --CCN 10'
+        language: system
+        files: \.py$
+        pass_filenames: false
+
+  # Code similarity check
+  - repo: local
+    hooks:
+      - id: check-similarity
+        name: code similarity check
+        entry: ./scripts/check-similarity.sh
+        language: system
+        files: \.py$
+        pass_filenames: false
