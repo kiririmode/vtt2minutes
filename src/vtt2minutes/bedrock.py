@@ -448,7 +448,6 @@ class BedrockMeetingMinutesGenerator:
                     "max_tokens": 4000,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.3,
-                    "top_p": 0.9,
                 }
             )
         else:
@@ -460,7 +459,6 @@ class BedrockMeetingMinutesGenerator:
                         "maxTokenCount": 4000,
                         "stopSequences": [],
                         "temperature": 0.3,
-                        "topP": 0.9,
                     },
                 }
             )
