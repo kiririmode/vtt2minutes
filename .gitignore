@@ -210,3 +210,5 @@ tests/*.vtt
 tests/*.md
 .claude/settings.local.json
 .testmondata
+.serena
+node_modules
