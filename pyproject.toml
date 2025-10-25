@@ -23,7 +23,7 @@ classifiers = [
 keywords = ["vtt", "transcript", "meeting", "minutes", "teams"]
 requires-python = ">=3.12"
 dependencies = [
-    "boto3>=1.38.46",
+    "boto3>=1.40.59",
     "click>=8.0.0",
     "rich>=10.0.0",
 ]

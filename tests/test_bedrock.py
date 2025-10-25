@@ -552,3 +552,47 @@ class TestBedrockError:
 
         assert generator.model_id is None
         assert generator.inference_profile_id == "test-profile"
+
+
+class TestBedrockInferenceProfiles:
+    """Test cases for inference profile support."""
+
+    def _create_mock_response(self, response_data: dict[str, Any]) -> dict[str, Any]:
+        """Helper to create mock response with given data."""
+        mock_response = {"body": Mock()}
+        mock_response["body"].read.return_value = json.dumps(response_data).encode()
+        return mock_response
+
+    @patch("vtt2minutes.bedrock.boto3.client")
+    def test_generate_minutes_with_claude_45_inference_profile(
+        self, mock_boto3: Mock
+    ) -> None:
+        """Test that inference profile IDs with colons work correctly.
+
+        Claude 4.5 inference profile IDs contain colons (e.g.,
+        'us.anthropic.claude-sonnet-4-5-v2:0'). This test ensures that
+        the updated boto3 version handles these IDs correctly.
+        """
+        mock_client = Mock()
+        mock_boto3.return_value = mock_client
+
+        # Mock successful response
+        mock_response = self._create_mock_response(
+            {"content": [{"text": "Generated minutes"}]}
+        )
+        mock_client.invoke_model.return_value = mock_response
+
+        # Create generator with Claude 4.5 style inference profile ID
+        generator = BedrockMeetingMinutesGenerator(
+            inference_profile_id="us.anthropic.claude-sonnet-4-5-v2:0",
+        )
+
+        result = generator.generate_minutes_from_markdown(
+            "Test content", "Test meeting"
+        )
+
+        assert result == "Generated minutes"
+
+        # Verify the correct parameters were used
+        call_args = mock_client.invoke_model.call_args
+        assert call_args[1]["modelId"] == "us.anthropic.claude-sonnet-4-5-v2:0"
