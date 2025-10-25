@@ -1,6 +1,6 @@
 """VTT2Minutes - Convert Teams VTT transcripts to AI-powered meeting minutes."""
 
-__version__ = "1.3.2"
+__version__ = "1.4.0"
 __author__ = "VTT2Minutes Contributors"
 __description__ = (
     "Convert Microsoft Teams VTT transcripts to AI-powered meeting minutes "
