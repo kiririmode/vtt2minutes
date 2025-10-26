@@ -100,13 +100,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download Linux binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: vtt2minutes-linux-x86_64
           path: ./binaries/linux/
 
       - name: Download Windows binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: vtt2minutes-windows-x86_64
           path: ./binaries/windows/
