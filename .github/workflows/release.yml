@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: コードをチェックアウト
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0 # 変更履歴生成のため全履歴を取得
 
