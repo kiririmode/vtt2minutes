@@ -124,7 +124,7 @@ jobs:
 
       - name: Upload coverage artifacts
         if: matrix.python-version == '3.12'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-report-${{ github.sha }}
           path: |
@@ -274,7 +274,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dist-packages
           path: dist/
