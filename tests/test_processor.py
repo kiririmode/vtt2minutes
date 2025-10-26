@@ -29,6 +29,7 @@ class TestProcessingConfig:
         assert config.overwrite is False
         assert config.verbose is False
         assert config.stats is False
+        assert config.keep_vtt is False
 
     def test_custom_config(self) -> None:
         """Test creating config with custom values."""
@@ -496,3 +497,163 @@ class TestVTTFileProcessor:
         assert result.input_file == input_file
         assert result.error is not None
         assert "Parse error" in result.error
+
+    def test_delete_vtt_file_success(self) -> None:
+        """Test successful VTT file deletion."""
+        with TemporaryDirectory() as temp_dir:
+            config = ProcessingConfig(keep_vtt=False, verbose=True)
+            processor = VTTFileProcessor(config)
+
+            vtt_file = Path(temp_dir) / "test.vtt"
+            vtt_file.write_text("WEBVTT")
+
+            processor._delete_vtt_file(vtt_file)
+
+            assert not vtt_file.exists()
+
+    def test_delete_vtt_file_failure(self) -> None:
+        """Test VTT file deletion failure handling."""
+        config = ProcessingConfig(keep_vtt=False, verbose=False)
+        processor = VTTFileProcessor(config)
+
+        # Try to delete non-existent file
+        vtt_file = Path("/nonexistent/test.vtt")
+
+        # Should not raise exception, only log warning
+        processor._delete_vtt_file(vtt_file)
+
+    @patch("vtt2minutes.processor.VTTParser")
+    @patch("vtt2minutes.processor.TextPreprocessor")
+    @patch("vtt2minutes.processor.IntermediateTranscriptWriter")
+    @patch("vtt2minutes.processor.BedrockMeetingMinutesGenerator")
+    def test_process_file_deletes_vtt_on_success(
+        self,
+        mock_generator_class,
+        mock_writer_class,
+        mock_preprocessor_class,
+        mock_parser_class,
+    ) -> None:
+        """Test VTT file is deleted after successful processing."""
+        with TemporaryDirectory() as temp_dir:
+            config = ProcessingConfig(
+                bedrock_model="anthropic.claude-3-sonnet-20241022-v2:0",
+                overwrite=True,
+                keep_vtt=False,
+            )
+            processor = VTTFileProcessor(config)
+
+            input_file = Path(temp_dir) / "input.vtt"
+            input_file.write_text("WEBVTT")
+            output_file = Path(temp_dir) / "output.md"
+            title = "Test Meeting"
+
+            intermediate_file = output_file.with_suffix(".preprocessed.md")
+            intermediate_file.write_text("Test intermediate content")
+
+            # Setup mocks
+            mock_parser = Mock()
+            mock_cues = [Mock()]
+            mock_parser.parse_file.return_value = mock_cues
+            mock_parser_class.return_value = mock_parser
+
+            mock_preprocessor = Mock()
+            mock_preprocessor.preprocess_cues.return_value = mock_cues
+            mock_preprocessor_class.return_value = mock_preprocessor
+
+            mock_writer = Mock()
+            mock_writer.get_statistics.return_value = {
+                "speakers": ["Alice"],
+                "duration": 60.0,
+                "word_count": 500,
+            }
+            mock_writer.format_duration.return_value = "1:00"
+            mock_writer_class.return_value = mock_writer
+
+            mock_generator = Mock()
+            mock_generator.generate_minutes_from_markdown.return_value = (
+                "Generated minutes"
+            )
+            mock_generator_class.return_value = mock_generator
+
+            result = processor.process_file(input_file, output_file, title)
+
+            assert result.success is True
+            assert not input_file.exists()
+
+    @patch("vtt2minutes.processor.VTTParser")
+    @patch("vtt2minutes.processor.TextPreprocessor")
+    @patch("vtt2minutes.processor.IntermediateTranscriptWriter")
+    @patch("vtt2minutes.processor.BedrockMeetingMinutesGenerator")
+    def test_process_file_keeps_vtt_when_requested(
+        self,
+        mock_generator_class,
+        mock_writer_class,
+        mock_preprocessor_class,
+        mock_parser_class,
+    ) -> None:
+        """Test VTT file is kept when keep_vtt is True."""
+        with TemporaryDirectory() as temp_dir:
+            config = ProcessingConfig(
+                bedrock_model="anthropic.claude-3-sonnet-20241022-v2:0",
+                overwrite=True,
+                keep_vtt=True,
+            )
+            processor = VTTFileProcessor(config)
+
+            input_file = Path(temp_dir) / "input.vtt"
+            input_file.write_text("WEBVTT")
+            output_file = Path(temp_dir) / "output.md"
+            title = "Test Meeting"
+
+            intermediate_file = output_file.with_suffix(".preprocessed.md")
+            intermediate_file.write_text("Test intermediate content")
+
+            # Setup mocks
+            mock_parser = Mock()
+            mock_cues = [Mock()]
+            mock_parser.parse_file.return_value = mock_cues
+            mock_parser_class.return_value = mock_parser
+
+            mock_preprocessor = Mock()
+            mock_preprocessor.preprocess_cues.return_value = mock_cues
+            mock_preprocessor_class.return_value = mock_preprocessor
+
+            mock_writer = Mock()
+            mock_writer.get_statistics.return_value = {
+                "speakers": ["Alice"],
+                "duration": 60.0,
+                "word_count": 500,
+            }
+            mock_writer.format_duration.return_value = "1:00"
+            mock_writer_class.return_value = mock_writer
+
+            mock_generator = Mock()
+            mock_generator.generate_minutes_from_markdown.return_value = (
+                "Generated minutes"
+            )
+            mock_generator_class.return_value = mock_generator
+
+            result = processor.process_file(input_file, output_file, title)
+
+            assert result.success is True
+            assert input_file.exists()
+
+    @patch("vtt2minutes.processor.VTTParser")
+    def test_process_file_keeps_vtt_on_failure(self, mock_parser_class) -> None:
+        """Test VTT file is kept when processing fails."""
+        with TemporaryDirectory() as temp_dir:
+            config = ProcessingConfig(keep_vtt=False)
+            processor = VTTFileProcessor(config)
+
+            input_file = Path(temp_dir) / "input.vtt"
+            input_file.write_text("WEBVTT")
+            output_file = Path(temp_dir) / "output.md"
+
+            mock_parser = Mock()
+            mock_parser.parse_file.side_effect = Exception("Parse error")
+            mock_parser_class.return_value = mock_parser
+
+            result = processor.process_file(input_file, output_file)
+
+            assert result.success is False
+            assert input_file.exists()

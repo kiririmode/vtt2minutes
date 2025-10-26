@@ -38,6 +38,7 @@ class ProcessingConfig:
     overwrite: bool = False
     verbose: bool = False
     stats: bool = False
+    keep_vtt: bool = False
 
 
 @dataclass
@@ -170,6 +171,9 @@ class VTTFileProcessor:
                     self._generate_chat_prompt(
                         intermediate_path, chat_prompt_file, title, progress
                     )
+                    # Delete VTT file after successful processing if requested
+                    if not self.config.keep_vtt:
+                        self._delete_vtt_file(input_file)
                     return ProcessingResult(
                         success=True,
                         input_file=input_file,
@@ -189,6 +193,10 @@ class VTTFileProcessor:
             stats = None
             if self.config.stats:
                 stats = self._collect_statistics(original_cues, cues, preprocessor)
+
+            # Delete VTT file after successful processing if requested
+            if not self.config.keep_vtt:
+                self._delete_vtt_file(input_file)
 
             return ProcessingResult(
                 success=True,
@@ -440,3 +448,23 @@ class VTTFileProcessor:
             return {}
 
         return preprocessor.get_statistics(original_cues, processed_cues)
+
+    def _delete_vtt_file(self, vtt_file: Path) -> None:
+        """Delete VTT file after successful processing.
+
+        Args:
+            vtt_file: Path to VTT file to delete
+
+        Note:
+            If deletion fails, a warning is logged but no exception is raised
+        """
+        try:
+            vtt_file.unlink()
+            if self.config.verbose:
+                self.console.print(f"✓ VTTファイルを削除しました: {vtt_file}")
+        except Exception as e:
+            # Log warning but don't fail the entire operation
+            self.console.print(
+                f"[yellow]警告: VTTファイルの削除に失敗しました: {vtt_file}[/yellow]"
+            )
+            self.console.print(f"[yellow]エラー: {e}[/yellow]")

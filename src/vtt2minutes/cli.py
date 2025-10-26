@@ -536,6 +536,28 @@ def _display_final_summary(output: Path, title: str | None, cues: list[VTTCue]) 
         console.print(f"総文字数: {summary_stats['word_count']}文字")
 
 
+def _delete_vtt_file(vtt_file: Path, verbose: bool) -> None:
+    """Delete VTT file after successful processing.
+
+    Args:
+        vtt_file: Path to VTT file to delete
+        verbose: Whether to display deletion message
+
+    Note:
+        If deletion fails, a warning is logged but no exception is raised
+    """
+    try:
+        vtt_file.unlink()
+        if verbose:
+            console.print(f"✓ VTTファイルを削除しました: {vtt_file}")
+    except Exception as e:
+        # Log warning but don't fail the entire operation
+        console.print(
+            f"[yellow]警告: VTTファイルの削除に失敗しました: {vtt_file}[/yellow]"
+        )
+        console.print(f"[yellow]エラー: {e}[/yellow]")
+
+
 @click.command()
 @click.argument("input_file", type=click.Path(exists=True, path_type=Path))
 @click.option(
@@ -619,6 +641,11 @@ def _display_final_summary(output: Path, title: str | None, cues: list[VTTCue]) 
     is_flag=True,
     help="Overwrite existing output files without warning",
 )
+@click.option(
+    "--keep-vtt",
+    is_flag=True,
+    help="Keep VTT files after successful processing",
+)
 def main(
     input_file: Path,
     output: Path | None,
@@ -638,6 +665,7 @@ def main(
     verbose: bool,
     stats: bool,
     overwrite: bool,
+    keep_vtt: bool,
 ) -> None:
     """Convert Microsoft Teams VTT transcripts to AI-powered meeting minutes.
 
@@ -707,6 +735,9 @@ def main(
                     verbose,
                     overwrite,
                 )
+                # Delete VTT file after successful processing if requested
+                if not keep_vtt:
+                    _delete_vtt_file(input_file, verbose)
                 return
 
             # Step 5: Generate AI-powered meeting minutes using Bedrock
@@ -723,6 +754,10 @@ def main(
 
             # Step 6: Save output file
             _save_output_file(output, markdown_content, progress, overwrite)
+
+        # Delete VTT file after successful processing if requested
+        if not keep_vtt:
+            _delete_vtt_file(input_file, verbose)
 
         # Show statistics if requested
         _display_statistics(stats, no_preprocessing, original_cues, cues, preprocessor)
@@ -900,6 +935,7 @@ def _create_processing_config(
     overwrite: bool,
     verbose: bool,
     stats: bool,
+    keep_vtt: bool,
 ) -> ProcessingConfig:
     """Create processing configuration."""
     return ProcessingConfig(
@@ -916,6 +952,7 @@ def _create_processing_config(
         overwrite=overwrite,
         verbose=verbose,
         stats=stats,
+        keep_vtt=keep_vtt,
     )
 
 
@@ -1000,6 +1037,11 @@ def _create_processing_config(
     is_flag=True,
     help="Overwrite existing output files without warning",
 )
+@click.option(
+    "--keep-vtt",
+    is_flag=True,
+    help="Keep VTT files after successful processing",
+)
 def batch(
     directory: Path,
     output_dir: Path | None,
@@ -1019,6 +1061,7 @@ def batch(
     verbose: bool,
     stats: bool,
     overwrite: bool,
+    keep_vtt: bool,
 ) -> None:
     """Process multiple VTT files in a directory interactively.
 
@@ -1063,6 +1106,7 @@ def batch(
             overwrite,
             verbose,
             stats,
+            keep_vtt,
         )
 
         processor = BatchProcessor(config)
