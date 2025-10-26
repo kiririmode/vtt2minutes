@@ -38,7 +38,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Coverage Report as PR Comment
-        uses: orgoro/coverage@v3.1
+        uses: orgoro/coverage@v3.2
         with:
           coverageFile: coverage.xml
           token: ${{ secrets.GITHUB_TOKEN }}
