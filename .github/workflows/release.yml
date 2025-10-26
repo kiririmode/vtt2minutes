@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0 # 変更履歴生成のため全履歴を取得
 
       - name: uvをインストール
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v7
         with:
           version: "latest"
 
