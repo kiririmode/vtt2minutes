@@ -11,7 +11,9 @@
     "ghcr.io/devcontainers/features/aws-cli:1": {
       "version": "latest"
     },
-    "ghcr.io/devcontainers/features/rust:1": {}
+    "ghcr.io/devcontainers/features/rust:1": {},
+    "ghcr.io/devcontainers-extra/features/direnv:1": {},
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },
   "customizations": {
     "vscode": {
@@ -39,6 +41,7 @@
     }
   },
   "forwardPorts": [],
-  "postCreateCommand": "uv sync --frozen --extra dev && npm install -g @anthropic-ai/claude-code && ./scripts/setup-hooks.sh",
+  "postCreateCommand": "uv sync --frozen --extra dev && ./scripts/setup-hooks.sh && echo 'eval \"$(direnv hook bash)\"' >> ~/.bashrc",
+  "postStartCommand": "curl -fsSL https://claude.ai/install.sh | bash && ./scripts/setup-claude-plugins.sh",
   "remoteUser": "vscode"
 }

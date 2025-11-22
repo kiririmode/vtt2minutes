@@ -1,6 +1,12 @@
 {
   "permissions": {
-    "allow": ["Bash(mkdir:*)"],
+    "allow": [
+      "Bash(mkdir:*)"
+    ],
     "deny": []
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "serena"
+  ]
 }
