@@ -39,6 +39,7 @@
     }
   },
   "forwardPorts": [],
-  "postCreateCommand": "uv sync --frozen --extra dev && npm install -g @anthropic-ai/claude-code && ./scripts/setup-hooks.sh",
+  "postCreateCommand": "uv sync --frozen --extra dev && ./scripts/setup-hooks.sh",
+  "postStartCommand": "curl -fsSL https://claude.ai/install.sh | bash && ./scripts/setup-claude-plugins.sh",
   "remoteUser": "vscode"
 }
