@@ -1,0 +1,69 @@
+# Default replacement rules for Japanese technical transcriptions
+
+# AWS Services
+ベッドロック -> Bedrock
+ビットロック -> Bedrock
+エス3 -> S3
+エススリー -> S3
+ラムダ -> Lambda
+イーシーツー -> EC2
+ダイナモディービー -> DynamoDB
+クラウドウォッチ -> CloudWatch
+イーシーエス -> ECS
+イーケーエス -> EKS
+コグニート -> Cognito
+セージメーカー -> SageMaker
+ケネシス -> Kinesis
+アーロラ -> Aurora
+レッドシフト -> Redshift
+オープンサーチ -> OpenSearch
+アイアム -> IAM
+クラウドフォーメーション -> CloudFormation
+エスキューエス -> SQS
+エスエヌエス -> SNS
+アテナ -> ATHENA
+ステップファンクションズ -> Step Functions
+ステップファンクション -> Step Functions
+ファーゲット -> Fargate
+
+# General IT terms
+エーアイ -> AI
+エルエルエム -> LLM
+ジーピーティー -> GPT
+デブオプス -> DevOps
+エスアールイー -> SRE
+シーアイシーディー -> CI/CD
+ジットハブ -> GitHub
+ドッカー -> Docker
+クバネティス -> Kubernetes
+テラフォーム -> Terraform
+エーピーアイ -> API
+ディービー -> DB
+ワンオンワン -> 1 on 1
+
+# ツール
+クラウドコード -> Claude Code
+クロードコード -> Claude Code
+デブコンテナ -> Dev Container
+キューカンバー -> Cucumber
+ナブラック -> Nablarch
+ナブラーク -> Nablarch
+ソナーキューブ -> SonarQube
+ネクサス -> Nexus
+コンポーズ -> Compose
+コパイロット -> Copilot
+ギターコパイロット -> GitHub Copilot
+ギットハブコパイロット -> GitHub Copilot
+プロメテウス -> Prometheus
+グラファナ -> Grafana
+グラファーナー -> grafana
+ランブック -> RunBook
+チームズ -> Teams
+マークダウン -> Markdown
+エクセル -> Excel
+ドッカー -> Docker
+レッドマイン -> Redmine
+バニラJS -> Vanilla JS
+SOR -> SoR
+SOE -> SoE
+リアクト -> React
