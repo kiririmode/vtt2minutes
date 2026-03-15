@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import boto3  # type: ignore[import-untyped]
+from botocore.config import Config  # type: ignore[import-untyped]
 from botocore.exceptions import (  # type: ignore[import-untyped]
     BotoCoreError,
     ClientError,
@@ -160,7 +161,11 @@ class BedrockMeetingMinutesGenerator:
         """
         try:
             client_kwargs = self._build_client_kwargs()
-            self.bedrock_client = boto3.client("bedrock-runtime", **client_kwargs)  # type: ignore[assignment]
+            self.bedrock_client = boto3.client(  # type: ignore[assignment]
+                "bedrock-runtime",
+                config=Config(read_timeout=600, connect_timeout=10),
+                **client_kwargs,
+            )
 
             if validate_access:
                 self._validate_bedrock_access()
@@ -280,7 +285,11 @@ class BedrockMeetingMinutesGenerator:
                     client_kwargs["aws_session_token"] = self.aws_session_token
 
             # Try to get foundation models to validate access
-            bedrock_client = boto3.client("bedrock", **client_kwargs)  # type: ignore[assignment]
+            bedrock_client = boto3.client(  # type: ignore[assignment]
+                "bedrock",
+                config=Config(read_timeout=30, connect_timeout=10),
+                **client_kwargs,
+            )
             bedrock_client.list_foundation_models()  # type: ignore[misc]
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "Unknown")  # type: ignore[misc]
@@ -557,7 +566,11 @@ class BedrockMeetingMinutesGenerator:
                 if self.aws_session_token:
                     client_kwargs["aws_session_token"] = self.aws_session_token
 
-            bedrock_client = boto3.client("bedrock", **client_kwargs)  # type: ignore[assignment]
+            bedrock_client = boto3.client(  # type: ignore[assignment]
+                "bedrock",
+                config=Config(read_timeout=30, connect_timeout=10),
+                **client_kwargs,
+            )
 
             response: dict[str, Any] = bedrock_client.list_foundation_models()  # type: ignore[misc]
             model_summaries: list[dict[str, Any]] = response.get("modelSummaries", [])  # type: ignore[misc]
