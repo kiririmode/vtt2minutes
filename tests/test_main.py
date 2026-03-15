@@ -25,6 +25,8 @@ def test_main_module_execution():
         spec = importlib.util.spec_from_file_location(
             "__main__", "src/vtt2minutes/__main__.py"
         )
+        assert spec is not None
+        assert spec.loader is not None
         main_module = importlib.util.module_from_spec(spec)
 
         # Execute the module as if it was run as __main__

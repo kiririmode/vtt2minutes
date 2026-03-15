@@ -125,6 +125,7 @@ invalid_line_without_arrow
     def test_default_replacement_rules_contains_aws(self) -> None:
         """Default rules should contain AWS service name mappings."""
         config = PreprocessingConfig()
+        assert config.replacement_rules is not None
         assert "ベッドロック" in config.replacement_rules
         assert config.replacement_rules["ベッドロック"] == "Bedrock"
 
