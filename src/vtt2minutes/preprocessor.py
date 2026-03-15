@@ -62,8 +62,7 @@ class PreprocessingConfig:
                 self.replacement_rules_file
             )
         elif self.replacement_rules is None:
-            # Use empty dict if none provided
-            self.replacement_rules = {}
+            self.replacement_rules = self._load_default_replacement_rules()
 
     def _load_filler_words_from_file(self, file_path: Path | str) -> set[str]:
         """Load filler words from a text file.
@@ -123,6 +122,24 @@ class PreprocessingConfig:
             "[咳]",
             "[笑い]",
         }
+
+    @staticmethod
+    def _load_default_replacement_rules() -> dict[str, str]:
+        """Load default replacement rules bundled with the package."""
+        from importlib.resources import files
+
+        ref = files("vtt2minutes") / "default_replacement_rules.txt"
+        rules: dict[str, str] = {}
+        with ref.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if " -> " not in line:
+                    continue
+                original, replacement = line.split(" -> ", 1)
+                rules[original.strip()] = replacement.strip()
+        return rules
 
     def _load_replacement_rules_from_file(
         self, file_path: Path | str

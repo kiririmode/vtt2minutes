@@ -116,6 +116,23 @@ invalid_line_without_arrow
         with pytest.raises(FileNotFoundError):
             config._load_replacement_rules_from_file("/nonexistent/file.txt")
 
+    def test_default_replacement_rules_loaded(self) -> None:
+        """When no file specified, default rules should be loaded (not empty)."""
+        config = PreprocessingConfig()
+        assert config.replacement_rules is not None
+        assert len(config.replacement_rules) > 0
+
+    def test_default_replacement_rules_contains_aws(self) -> None:
+        """Default rules should contain AWS service name mappings."""
+        config = PreprocessingConfig()
+        assert "ベッドロック" in config.replacement_rules
+        assert config.replacement_rules["ベッドロック"] == "Bedrock"
+
+    def test_explicit_empty_rules_override_default(self) -> None:
+        """Explicitly passing empty dict should override default rules."""
+        config = PreprocessingConfig(replacement_rules={})
+        assert config.replacement_rules == {}
+
     def test_integration_with_preprocessing(self) -> None:
         """Test word replacement integration with full preprocessing pipeline."""
         config = PreprocessingConfig(
