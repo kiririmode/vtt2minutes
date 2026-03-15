@@ -1,11 +1,15 @@
 FROM mcr.microsoft.com/devcontainers/python:3.12-bookworm
 
+# Remove problematic Yarn repository if it exists
+RUN rm -f /etc/apt/sources.list.d/yarn.list
+
 # Install system dependencies including Node.js
 RUN apt-get update && apt-get install -y \
     git \
     curl \
-    #    && curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
-    #    && apt-get install -y nodejs \
+    ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean \
     && rm -rf /tmp/* /var/tmp/*
