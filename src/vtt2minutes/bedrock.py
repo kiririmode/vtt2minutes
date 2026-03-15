@@ -454,7 +454,7 @@ class BedrockMeetingMinutesGenerator:
             body = json.dumps(
                 {
                     "anthropic_version": "bedrock-2023-05-31",
-                    "max_tokens": 4000,
+                    "max_tokens": 8192,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.3,
                 }
@@ -465,7 +465,7 @@ class BedrockMeetingMinutesGenerator:
                 {
                     "inputText": prompt,
                     "textGenerationConfig": {
-                        "maxTokenCount": 4000,
+                        "maxTokenCount": 8192,
                         "stopSequences": [],
                         "temperature": 0.3,
                     },
