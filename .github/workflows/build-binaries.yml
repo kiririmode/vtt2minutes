@@ -168,7 +168,7 @@ jobs:
           echo "- Internet connection for AI-powered meeting minutes generation" >> release_notes.md
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: VTT2Minutes ${{ steps.version.outputs.tag }}
