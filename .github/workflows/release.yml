@@ -91,7 +91,7 @@ jobs:
           echo "::endgroup::"
 
       - name: GitHubリリースを作成
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Release v${{ steps.version.outputs.version }}
           body_path: RELEASE_NOTES.md
